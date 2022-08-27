@@ -29,7 +29,7 @@
 
 import { connect, Socket, NetConnectOpts } from "net";
 import { toASCII } from 'punycode';
-import { isString, parseInteger } from "../../../core/modules/lodash";
+import { isString, parseInteger, startsWith } from "../../../core/modules/lodash";
 import { LogService } from "../../../core/LogService";
 import { WhoisService } from "../../../core/whois/WhoisService";
 import { createWhoisLookupResult, WhoisLookupResult } from "../../../core/whois/types/WhoisLookupResult";
@@ -60,18 +60,18 @@ export class NodeWhoisService implements WhoisService {
         options?: WhoisLookupOptions
     ): Promise<readonly WhoisLookupResult[]> {
 
+        LOG.debug(`whoisLookup: addr = "${addr}"; options = `, options);
+
         const _options: WhoisLookupOptions = {
-            ...{
-                responseEncoding: 'utf8',
-                follow: 2,
-                timeout: 60000 // 60 seconds in ms
-            },
+            responseEncoding: 'utf8',
+            follow: 2,
+            timeout: 60000, // 60 seconds in ms
             ...(options ?? {})
         };
 
         const server: WhoisServerOptions | undefined = NodeWhoisService._parseServerOptions(_options.server);
         if ( !server ) {
-            throw new Error('lookup: no whois server is known for this kind of object');
+            throw new Error(`whoisLookup: no whois server is known for this kind of object: ${_options.server}`);
         }
         LOG.debug(`server = `, server);
 
@@ -103,6 +103,10 @@ export class NodeWhoisService implements WhoisService {
         const data = buffer.toString(_options.responseEncoding);
         LOG.debug(`data = `, data);
 
+        if (startsWith(data, 'ERROR:')) {
+            throw Error(data.substring('ERROR:'.length).trim());
+        }
+
         if ( _options.follow > 0 ) {
             const nextServer = NodeWhoisService._parseNextServer(data);
             if ( nextServer && nextServer !== server.host ) {
@@ -113,10 +117,8 @@ export class NodeWhoisService implements WhoisService {
                         addr,
                         {
                             ..._options,
-                            ...{
-                                follow: _options.follow - 1,
-                                server: nextServer
-                            }
+                            follow: _options.follow - 1,
+                            server: nextServer
                         }
                     )
                 );
@@ -137,7 +139,9 @@ export class NodeWhoisService implements WhoisService {
     private static _parseServerOptions (
         server: string | WhoisServerOptions | undefined
     ) : WhoisServerOptions | undefined {
-        if ( !server ) return undefined;
+        if ( !server ) {
+            return undefined;
+        }
         if ( isString(server) ) {
             const parts = server.split(':');
             server = {
@@ -145,13 +149,21 @@ export class NodeWhoisService implements WhoisService {
                 port: parts.length >= 2 ? parseInteger(parts[1]) : 43
             };
         }
-        server = {
-            ...{
-                port: 43,
-                query: "$addr\r\n"
-            },
-            ...server
-        };
+        if ( !server.host ) {
+            return undefined;
+        }
+        if (!server.port) {
+            server = {
+                ...server,
+                port: 43
+            };
+        }
+        if (!server.query) {
+            server = {
+                ...server,
+                query: "$addr\r\n",
+            };
+        }
         return {
             ...server,
             host: server.host.trim()
@@ -191,6 +203,8 @@ export class NodeWhoisService implements WhoisService {
         idn: string,
         query: string
     ): Promise<Buffer> {
+        if (!idn) throw new TypeError(`_whoisSocketQuery: No idn param: ${idn}`);
+        if (!query) throw new TypeError(`_whoisSocketQuery: No query param: ${query}`);
         return await new Promise(
             (resolve, reject) => {
                 try {
@@ -201,7 +215,7 @@ export class NodeWhoisService implements WhoisService {
                     });
                     socket.on('timeout', () => {
                         socket.destroy();
-                        reject(new Error('lookup: timeout'));
+                        reject(new Error('_whoisSocketQuery: timeout'));
                     });
                     socket.on('error', (err) => {
                         reject(err);
