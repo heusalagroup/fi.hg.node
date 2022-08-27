@@ -29,13 +29,19 @@
 
 import { isIP } from "net";
 import { toASCII } from 'punycode';
-import { LogService } from "../../core/LogService";
-import { WhoisServerOptions } from "../../core/whois/types/WhoisServerOptions";
-import { WhoisServerList } from "../../core/whois/types/WhoisServerList";
+import { LogService } from "../../../core/LogService";
+import { WhoisServerOptions } from "../../../core/whois/types/WhoisServerOptions";
+import { WhoisServerList } from "../../../core/whois/types/WhoisServerList";
+import { WhoisServerRegistryService } from "../../../core/whois/WhoisServerRegistryService";
 
 const LOG = LogService.createLogger('WhoisServerRegistryService');
 
-export class WhoisServerRegistryService {
+/**
+ * Resolves whois servers from a predefined list of servers based on address
+ *
+ * @see example at https://github.com/heusalagroup/whois.hg.fi/blob/main/src/main.ts#L58
+ */
+export class NodeWhoisServerRegistryService implements WhoisServerRegistryService {
 
     private readonly _servers: WhoisServerList;
 
@@ -52,7 +58,7 @@ export class WhoisServerRegistryService {
         } else if (isIP(addr) !== 0) {
             server = this._servers._IP;
         } else {
-            server = WhoisServerRegistryService._resolveServer(this._servers, addr);
+            server = NodeWhoisServerRegistryService._resolveServer(this._servers, addr);
         }
         if (server) {
             LOG.debug(`"${addr}": Found: `, server);

@@ -29,27 +29,26 @@
 
 import { connect, Socket, NetConnectOpts } from "net";
 import { toASCII } from 'punycode';
-import { isString, parseInteger } from "../../core/modules/lodash";
-import { LogService } from "../../core/LogService";
-import { WhoisService } from "../../core/whois/WhoisService";
-import { createWhoisLookupResult, WhoisLookupResult } from "../../core/whois/types/WhoisLookupResult";
-import { WhoisServerOptions } from "../../core/whois/types/WhoisServerOptions";
-import { WhoisServerList } from "../../core/whois/types/WhoisServerList";
-import { WhoisLookupOptions } from "../../core/whois/types/WhoisLookupOptions";
+import { isString, parseInteger } from "../../../core/modules/lodash";
+import { LogService } from "../../../core/LogService";
+import { WhoisService } from "../../../core/whois/WhoisService";
+import { createWhoisLookupResult, WhoisLookupResult } from "../../../core/whois/types/WhoisLookupResult";
+import { WhoisServerOptions } from "../../../core/whois/types/WhoisServerOptions";
+import { WhoisLookupOptions } from "../../../core/whois/types/WhoisLookupOptions";
 
 const LOG = LogService.createLogger('NodeWhoisService');
 
+/**
+ * Performs query on whois server
+ *
+ * @see example at https://github.com/heusalagroup/whois.hg.fi/blob/main/src/main.ts#L58
+ */
 export class NodeWhoisService implements WhoisService {
-
-    private readonly _servers: WhoisServerList;
 
     /**
      *
-     * @param servers
      */
-    public constructor (servers: WhoisServerList) {
-        this._servers = servers;
-    }
+    public constructor () {}
 
     /**
      *
@@ -159,6 +158,11 @@ export class NodeWhoisService implements WhoisService {
         };
     }
 
+    /**
+     *
+     * @param data
+     * @private
+     */
     private static _parseNextServer (
         data: string
     ): string | undefined {
@@ -166,10 +170,22 @@ export class NodeWhoisService implements WhoisService {
         return match != null ? NodeWhoisService._cleanParsingErrors(match[3].trim()) : undefined;
     }
 
+    /**
+     *
+     * @param string
+     * @private
+     */
     private static _cleanParsingErrors (string: string) {
         return string.replace(/^[:\s]+/, '').replace(/^https?[:\/]+/, '') || string;
     }
 
+    /**
+     *
+     * @param socket
+     * @param idn
+     * @param query
+     * @private
+     */
     private static async _whoisSocketQuery (
         socket: Socket,
         idn: string,

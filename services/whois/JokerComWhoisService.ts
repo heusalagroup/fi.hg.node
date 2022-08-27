@@ -1,9 +1,9 @@
 // Copyright (c) 2022. Heusala Group Oy <info@heusalagroup.fi>. All rights reserved.
 
-import { WhoisService } from "../../core/whois/WhoisService";
-import { WhoisLookupResult } from "../../core/whois/types/WhoisLookupResult";
-import { WhoisLookupOptions } from "../../core/whois/types/WhoisLookupOptions";
-import { createWhoisServerOptions, WhoisServerOptions } from "../../core/whois/types/WhoisServerOptions";
+import { WhoisService } from "../../../core/whois/WhoisService";
+import { WhoisLookupResult } from "../../../core/whois/types/WhoisLookupResult";
+import { WhoisLookupOptions } from "../../../core/whois/types/WhoisLookupOptions";
+import { createWhoisServerOptions, WhoisServerOptions } from "../../../core/whois/types/WhoisServerOptions";
 
 export const JOKER_WHOIS_HOSTNAME = "whois.joker.com";
 export const JOKER_WHOIS_PORT = 4343;
