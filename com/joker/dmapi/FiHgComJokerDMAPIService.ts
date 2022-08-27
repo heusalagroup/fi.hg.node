@@ -266,8 +266,8 @@ export class FiHgComJokerDMAPIService {
         if (!this._authSID) throw new Error("FiHgComJokerDMAPIService.domainModify: No auth_id. Try login first.");
         if (!domain) throw new TypeError('FiHgComJokerDMAPIService.domainModify: Option "domain" is required.');
         if (dnssec === true && !ds) throw new TypeError('FiHgComJokerDMAPIService.domainModify: Option "ds" is required when "dnssec" enabled.');
-        if (dnssec === true && ds?.length < 2) throw new TypeError('FiHgComJokerDMAPIService.domainModify: Option "ds" must have at least 2 items.');
-        if (nsList !== undefined && nsList?.length < 2) throw new TypeError('FiHgComJokerDMAPIService.domainModify: Option "nsList" must have at least 2 nameservers.');
+        if (dnssec === true && (ds?.length ?? 0) < 2) throw new TypeError('FiHgComJokerDMAPIService.domainModify: Option "ds" must have at least 2 items.');
+        if (nsList !== undefined && (nsList?.length ?? 0) < 2) throw new TypeError('FiHgComJokerDMAPIService.domainModify: Option "nsList" must have at least 2 nameservers.');
         const opts = {
             'auth-sid': this._authSID,
             domain,
@@ -277,12 +277,12 @@ export class FiHgComJokerDMAPIService {
             ...(nsList !== undefined ? {'ns-list': nsList.join(':')} : {}),
             ...(registerTag ? {'registrar-tag': registerTag} : {}),
             ...(dnssec !== undefined ? {'dnssec': dnssec ? '1' : '0'} : {}),
-            ...(ds.length >= 1 ? {'ds-1': ds[0]} : {}),
-            ...(ds.length >= 2 ? {'ds-2': ds[1]} : {}),
-            ...(ds.length >= 3 ? {'ds-3': ds[2]} : {}),
-            ...(ds.length >= 4 ? {'ds-4': ds[3]} : {}),
-            ...(ds.length >= 5 ? {'ds-5': ds[4]} : {}),
-            ...(ds.length >= 6 ? {'ds-6': ds[5]} : {}),
+            ...(dnssec !== undefined && ds !== undefined && ds.length >= 1 ? {'ds-1': ds[0]} : {}),
+            ...(dnssec !== undefined && ds !== undefined && ds.length >= 2 ? {'ds-2': ds[1]} : {}),
+            ...(dnssec !== undefined && ds !== undefined && ds.length >= 3 ? {'ds-3': ds[2]} : {}),
+            ...(dnssec !== undefined && ds !== undefined && ds.length >= 4 ? {'ds-4': ds[3]} : {}),
+            ...(dnssec !== undefined && ds !== undefined && ds.length >= 5 ? {'ds-5': ds[4]} : {}),
+            ...(dnssec !== undefined && ds !== undefined && ds.length >= 6 ? {'ds-6': ds[5]} : {}),
         };
         await jokerRequest(this._url,'domain-modify', opts);
     }
@@ -307,13 +307,16 @@ async function jokerRequest (
         }
     );
     LOG.debug(`_exec: response = `, response);
-    return parseResponseBody(response);
+    return parseResponseBody(response ?? '');
 }
 
 /** Parse DMAPI response body */
 function parseResponseBody (data: string) : JokerDMAPIResponseObject {
     const parts = split('\n\n', data);
     const headersString = parts.shift();
+    if (headersString === undefined) {
+        throw new TypeError(`parseResponseBody: Could not parse headers from: "${data}"`);
+    }
     const bodyString = parts.join('\n\n');
     return {
         headers: parseResponseHeaders(headersString),
@@ -331,6 +334,7 @@ function parseResponseHeaders (headersString: string) : JokerStringObject {
             }
             const parts = split(': ', ""+line);
             const name = parts.shift();
+            if (!name) throw new TypeError(`parseResponseHeaders: Could not parse name and value: "${line}"`);
             const value = parts.join(': ');
             return {
                 ...obj,
@@ -366,15 +370,26 @@ function parse_domain (
     // +S+G+J ==> "example.fi 2017-06-02 lock @creator true 0 undef 0"
 
     const tmp = line.split(' ');
+
     const domain = tmp.shift();
     if (!domain) throw new TypeError(`FiHgComJokerDMAPIService.parse_domain: Could not parse domain name: "${line}"`);
+
     const exp_date = tmp.shift();
     if (!exp_date) throw new TypeError(`FiHgComJokerDMAPIService.parse_domain: Could not parse domain exp_date: "${line}"`);
 
-    const status = tmp.shift().split(',');
+    const statusString = tmp.shift();
+    if (statusString === undefined) throw new TypeError(`FiHgComJokerDMAPIService.parse_domain: Could not parse statusString from "${line}"`);
+
+    const status = statusString.split(',');
     if (!isString(status)) throw new TypeError(`FiHgComJokerDMAPIService.parse_domain: Could not parse status: "${line}"`);
-    const jokerNS = parseJokerNS(tmp.pop());
-    if (!isBoolean(jokerNS)) throw new TypeError(`FiHgComJokerDMAPIService.parse_domain: Could not parse status: "${line}"`);
+
+    const jokerNsString = tmp.pop();
+    if (jokerNsString === undefined) {
+        throw new TypeError(`FiHgComJokerDMAPIService.parse_domain: Could not parse jokerNs string: "${line}"`);
+    }
+    const jokerNS = parseJokerNS(jokerNsString);
+    if (!isBoolean(jokerNS)) throw new TypeError(`FiHgComJokerDMAPIService.parse_domain: Could not parse jokerNs: "${line}"`);
+
     const grants = tmp.join(' ');
 
     return {
@@ -393,6 +408,7 @@ function parseJokerStringObjectResponse (body: string) : JokerStringObject {
         (data : JokerStringObject, line: string) : JokerStringObject => {
             const parts = split(line, ': ');
             const key = parts.shift();
+            if (!key) throw new TypeError(`FiHgComJokerDMAPIService.parseJokerStringObjectResponse: Could not parse key from line "${line}"`);
             const value = parts.join(': ');
             return {
                 ...data,
