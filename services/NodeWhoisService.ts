@@ -27,11 +27,15 @@
  * either expressed or implied, of the FreeBSD Project.
  */
 
-import { isIP, connect, Socket, NetConnectOpts } from "net";
+import { connect, Socket, NetConnectOpts } from "net";
 import { toASCII } from 'punycode';
 import { isString, parseInteger } from "../../core/modules/lodash";
 import { LogService } from "../../core/LogService";
-import { WhoisServerList, WhoisLookupOptions, WhoisLookupResult, WhoisServerOptions, WhoisService } from "../../core/whois/WhoisService";
+import { WhoisService } from "../../core/whois/WhoisService";
+import { createWhoisLookupResult, WhoisLookupResult } from "../../core/whois/types/WhoisLookupResult";
+import { WhoisServerOptions } from "../../core/whois/types/WhoisServerOptions";
+import { WhoisServerList } from "../../core/whois/types/WhoisServerList";
+import { WhoisLookupOptions } from "../../core/whois/types/WhoisLookupOptions";
 
 const LOG = LogService.createLogger('NodeWhoisService');
 
@@ -39,10 +43,19 @@ export class NodeWhoisService implements WhoisService {
 
     private readonly _servers: WhoisServerList;
 
+    /**
+     *
+     * @param servers
+     */
     public constructor (servers: WhoisServerList) {
         this._servers = servers;
     }
 
+    /**
+     *
+     * @param addr
+     * @param options
+     */
     async whoisLookup (
         addr: string,
         options?: WhoisLookupOptions
@@ -50,62 +63,18 @@ export class NodeWhoisService implements WhoisService {
 
         const _options: WhoisLookupOptions = {
             ...{
+                responseEncoding: 'utf8',
                 follow: 2,
                 timeout: 60000 // 60 seconds in ms
             },
             ...(options ?? {})
         };
 
-        let server: string | WhoisServerOptions = _options.server;
-        let timeout = _options.timeout;
-
-        let tld;
-        if ( !server ) {
-            switch (true) {
-
-                case addr.indexOf('@') >= 0:
-                    throw new Error('lookup: email addresses not supported');
-
-                case isIP(addr) !== 0:
-                    server = this._servers._IP;
-                    break;
-
-                default:
-                    tld = toASCII(addr);
-                    while ( true ) {
-                        server = this._servers[tld];
-                        if ( !tld || server ) {
-                            break;
-                        }
-                        tld = tld.replace(/^.+?(\.|$)/, '');
-                    }
-            }
-        }
-
+        const server: WhoisServerOptions | undefined = NodeWhoisService._parseServerOptions(_options.server);
         if ( !server ) {
             throw new Error('lookup: no whois server is known for this kind of object');
         }
-
-        if ( isString(server) ) {
-            const parts = server.split(':');
-            server = {
-                host: parts[0],
-                port: parts.length >= 2 ? parseInteger(parts[1]) : 43
-            };
-        }
-
-        server = {
-            ...{
-                port: 43,
-                query: "$addr\r\n"
-            },
-            ...server
-        };
-
-        server = {
-            ...server,
-            host: server.host.trim()
-        };
+        LOG.debug(`server = `, server);
 
         const sockOpts: NetConnectOpts = {
             host: server.host,
@@ -119,34 +88,27 @@ export class NodeWhoisService implements WhoisService {
         LOG.debug(`sockOpts = `, sockOpts);
 
         const socket = connect(sockOpts);
-        if ( timeout ) {
-            socket.setTimeout(timeout);
+        if ( _options.timeout ) {
+            socket.setTimeout(_options.timeout);
         }
-
-        const punycode: boolean = server.punycode !== false && _options.punycode !== false;
-
         if ( _options.encoding ) {
             socket.setEncoding(_options.encoding);
         }
 
-        const buffer = await whoisSocketQuery(
+        const buffer = await NodeWhoisService._whoisSocketQuery(
             socket,
-            punycode !== false ? toASCII(addr) : addr,
+            server.punycode !== false && _options.punycode !== false ? toASCII(addr) : addr,
             server.query
         );
 
-        const data = buffer.toString('utf8');
-
+        const data = buffer.toString(_options.responseEncoding);
         LOG.debug(`data = `, data);
 
         if ( _options.follow > 0 ) {
-            const nextServer = parseNextServer(data);
+            const nextServer = NodeWhoisService._parseNextServer(data);
             if ( nextServer && nextServer !== server.host ) {
                 return [
-                    {
-                        server: server.host,
-                        data: data
-                    }
+                    createWhoisLookupResult(server.host, data)
                 ].concat(
                     await this.whoisLookup(
                         addr,
@@ -163,53 +125,79 @@ export class NodeWhoisService implements WhoisService {
         }
 
         return [
-            {
-                server: server.host,
-                data: data
-            }
+            createWhoisLookupResult(server.host, data)
         ];
 
     }
 
-}
-
-function parseNextServer (
-    data: string
-): string | undefined {
-    const match = data.replace(/\r/gm, '').match(/(ReferralServer|Registrar Whois|Whois Server|WHOIS Server|Registrar WHOIS Server):[^\S\n]*((?:r?whois|https?):\/\/)?(.*)/);
-    return match != null ? cleanParsingErrors(match[3].trim()) : undefined;
-}
-
-function cleanParsingErrors (string: string) {
-    return string.replace(/^[:\s]+/, '').replace(/^https?[:\/]+/, '') || string;
-}
-
-async function whoisSocketQuery (
-    socket: Socket,
-    idn: string,
-    query: string
-): Promise<Buffer> {
-    return await new Promise(
-        (resolve, reject) => {
-            try {
-                const chunks: Buffer[] = [];
-                socket.write(query.replace('$addr', idn));
-                socket.on('data', (chunk) => {
-                    chunks.push(chunk);
-                });
-                socket.on('timeout', () => {
-                    socket.destroy();
-                    reject(new Error('lookup: timeout'));
-                });
-                socket.on('error', (err) => {
-                    reject(err);
-                });
-                return socket.on('close', () => {
-                    resolve(Buffer.concat(chunks));
-                });
-            } catch (err) {
-                reject(err);
-            }
+    /**
+     *
+     * @param server
+     * @private
+     */
+    private static _parseServerOptions (
+        server: string | WhoisServerOptions | undefined
+    ) : WhoisServerOptions | undefined {
+        if ( !server ) return undefined;
+        if ( isString(server) ) {
+            const parts = server.split(':');
+            server = {
+                host: parts[0],
+                port: parts.length >= 2 ? parseInteger(parts[1]) : 43
+            };
         }
-    );
+        server = {
+            ...{
+                port: 43,
+                query: "$addr\r\n"
+            },
+            ...server
+        };
+        return {
+            ...server,
+            host: server.host.trim()
+        };
+    }
+
+    private static _parseNextServer (
+        data: string
+    ): string | undefined {
+        const match = data.replace(/\r/gm, '').match(/(ReferralServer|Registrar Whois|Whois Server|WHOIS Server|Registrar WHOIS Server):[^\S\n]*((?:r?whois|https?):\/\/)?(.*)/);
+        return match != null ? NodeWhoisService._cleanParsingErrors(match[3].trim()) : undefined;
+    }
+
+    private static _cleanParsingErrors (string: string) {
+        return string.replace(/^[:\s]+/, '').replace(/^https?[:\/]+/, '') || string;
+    }
+
+    private static async _whoisSocketQuery (
+        socket: Socket,
+        idn: string,
+        query: string
+    ): Promise<Buffer> {
+        return await new Promise(
+            (resolve, reject) => {
+                try {
+                    const chunks: Buffer[] = [];
+                    socket.write(query.replace('$addr', idn));
+                    socket.on('data', (chunk) => {
+                        chunks.push(chunk);
+                    });
+                    socket.on('timeout', () => {
+                        socket.destroy();
+                        reject(new Error('lookup: timeout'));
+                    });
+                    socket.on('error', (err) => {
+                        reject(err);
+                    });
+                    return socket.on('close', () => {
+                        resolve(Buffer.concat(chunks));
+                    });
+                } catch (err) {
+                    reject(err);
+                }
+            }
+        );
+    }
+
 }
