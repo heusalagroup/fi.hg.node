@@ -9,7 +9,7 @@ import {
     isBoolean,
     isString,
     keys,
-    map,
+    map, parseInteger,
     reduce,
     split,
     startsWith,
@@ -36,8 +36,12 @@ import { explainJokerComApiPriceAmount, parseJokerComApiPriceAmount } from "../.
 import { explainJokerComApiCurrency, parseJokerComApiCurrency } from "../../../../core/com/joker/dmapi/types/JokerComApiCurrency";
 import { explainJokerComApiDomainPeriod, parseJokerComApiDomainPeriod } from "../../../../core/com/joker/dmapi/types/JokerComApiDomainPeriod";
 import { FiHgComJokerDomainManagementAPI } from "../../../../core/com/joker/dmapi/FiHgComJokerDomainManagementAPI";
+import { createJokerComApiProfileDTO, JokerComApiProfileDTO } from "../../../../core/com/joker/dmapi/types/JokerComApiProfileDTO";
+import { explainJokerComApiUserAccess, parseJokerComApiUserAccess } from "../../../../core/com/joker/dmapi/types/JokerComApiUserAccess";
 
 const LOG = LogService.createLogger('FiHgComJokerDomainManagementService');
+
+const MINIMUM_TIMEOUT_THRESHOLD = 300;
 
 /**
  * Joker.com DMAPI client library for NodeJS
@@ -74,7 +78,39 @@ export class FiHgComJokerDomainManagementService implements FiHgComJokerDomainMa
      * Returns `true` if has session key saved
      */
     public hasSession() : boolean {
+        if (this.isTimeoutReached()) {
+            this._authSID = undefined;
+            return false;
+        }
         return this._authSID !== undefined;
+    }
+
+    public getTimeoutThreshold () : number {
+        if (this._ttl === undefined) {
+            return 0;
+        }
+        const ttl = this._ttl;
+        if ( ttl <= MINIMUM_TIMEOUT_THRESHOLD ) {
+            return Math.ceil( this._ttl / 4 * 3 )
+        }
+        return MINIMUM_TIMEOUT_THRESHOLD;
+    }
+
+    public isTimeoutThresholdReached () : boolean {
+        if (this._authSID === undefined) return true;
+        if (this._ttl === undefined) return true;
+        if (this._time === undefined) return true;
+        const threshold = this.getTimeoutThreshold();
+        const now = Date.now();
+        return now >= (this._time + this._ttl - threshold);
+    }
+
+    public isTimeoutReached () : boolean {
+        if (this._authSID === undefined) return true;
+        if (this._ttl === undefined) return true;
+        if (this._time === undefined) return true;
+        const now = Date.now();
+        return now >= (this._time + this._ttl);
     }
 
     /**
@@ -85,7 +121,21 @@ export class FiHgComJokerDomainManagementService implements FiHgComJokerDomainMa
     public async isReady() : Promise<boolean> {
         if (this._authSID === undefined) return false;
         try {
+
+            // Check if timeout has passed
+            if (this.isTimeoutReached()) {
+                this._authSID = undefined;
+                return false;
+            }
+
+            // Check if we need to re-login
+            if (this.isTimeoutThresholdReached()) {
+                await this.logout();
+                return false;
+            }
+
             await this.queryProfile();
+
             return true;
         } catch (err) {
             LOG.warn(`isReady: Received error: `, err);
@@ -130,16 +180,62 @@ export class FiHgComJokerDomainManagementService implements FiHgComJokerDomainMa
             ...(apiKey !== undefined ? {'api-key': apiKey} : {})
         };
         const response = await jokerPostRequest(this._url,'login', args);
-        const headers = response?.headers;
-        const auth_id = headers['auth-sid'];
-        const uid = headers?.uid;
-        const tlds = split(response?.body, "\n");
-        this._authSID = auth_id;
+        const headers = response?.headers ?? {};
+
+        const uid                    = headers['uid'];
+        const userLogin              = headers['user-login'];
+
+        const authSID                = headers['auth-sid'];
+        const sessionTimeout         = parseInteger(headers['session-timeout']) ?? 0;
+
+        const userAccessString = headers['user-access'];
+        const userAccess             = parseJokerComApiUserAccess( userAccessString );
+        if (!userAccess) {
+            throw new TypeError(`FiHgComJokerDomainManagementService._login: Could not parse user-access "${userAccessString}": ${explainJokerComApiUserAccess(userAccessString)}`);
+        }
+
+        const accountCurrencyString = headers['account-currency'];
+        const accountCurrency        = parseJokerComApiCurrency( accountCurrencyString );
+        if (!accountCurrency) {
+            throw new TypeError(`FiHgComJokerDomainManagementService._login: Could not parse account-currency "${accountCurrencyString}": ${explainJokerComApiCurrency(accountCurrencyString)}`);
+        }
+
+        const accountBalance         = parseJokerComApiPriceAmount (headers['account-balance'] ) ?? 0;
+        const accountPendingAmount   = parseJokerComApiPriceAmount( headers['account-pending_amount'] ) ?? 0;
+        const accountRebate          = parseFloat(headers['account-rebate']);
+        const accountContractDate    = headers['account-contract_date'];
+        const statsNumberOfDomains   = parseInteger(headers['stats-number-of-domains']) ?? 0;
+        const statsLastLogin         = headers['stats-last-login'];
+        const statsLastIp            = headers['stats-last-ip'];
+        const statsLastError         = headers['stats-last-error'];
+        const statsLastErrorIp       = headers['stats-last-error-ip'];
+        const statsNumberOfAutoRenew = parseInteger(headers['stats-number-of-autorenew']) ?? 0;
+
+        const tldList = split(response?.body, "\n");
+
+        this._authSID = authSID;
+        this._time = Date.now();
+        this._ttl = sessionTimeout;
+
         return createJokerComApiLoginDTO(
-            auth_id,
+            headers,
+            authSID,
             uid,
-            tlds,
-            headers
+            userLogin,
+            sessionTimeout,
+            userAccess,
+            accountCurrency,
+            accountBalance,
+            accountPendingAmount,
+            accountRebate,
+            accountContractDate,
+            statsNumberOfDomains,
+            statsLastLogin,
+            statsLastIp,
+            statsLastError,
+            statsLastErrorIp,
+            statsNumberOfAutoRenew,
+            tldList
         );
     }
 
@@ -291,7 +387,7 @@ export class FiHgComJokerDomainManagementService implements FiHgComJokerDomainMa
     }
 
     /** query-profile */
-    public async queryProfile () : Promise<JokerStringObject> {
+    public async queryProfile () : Promise<JokerComApiProfileDTO> {
         if (!this._authSID) throw new Error("FiHgComJokerDomainManagementService.queryProfile: No auth_id. Try login first.");
         const response = await jokerPostRequest(
             this._url,
@@ -300,7 +396,56 @@ export class FiHgComJokerDomainManagementService implements FiHgComJokerDomainMa
                 'auth-sid': this._authSID
             }
         );
-        return parseJokerStringObjectResponse(response.body);
+        const headers = response.headers;
+        const body = parseJokerStringObjectResponse(response.body);
+        const customerId   = body['customer-id']    ?? '';
+        const firstName    = body['fname']          ?? '';
+        const lastName     = body['lname']          ?? '';
+        const organization = body['organization']   ?? '';
+        const city         = body['city']           ?? '';
+        const address1     = body['address-1']      ?? '';
+        const address2     = body['address-2']      ?? '';
+        const postalCode   = body['postal-code']    ?? '';
+        const state        = body['state']          ?? '';
+        const phone        = body['phone']          ?? '';
+        const fax          = body['fax']            ?? '';
+        const balance      = body['balance']        ?? '';
+        const vatId        = body['vat-id']         ?? '';
+        const lastPayment  = body['last-payment']   ?? '';
+        const lastAccess   = body['last-access']    ?? '';
+        const adminEmail   = body['admin_email']    ?? '';
+        const robotEmail   = body['robot_email']    ?? '';
+        const checkdIp     = body['checkd_ip']      ?? '';
+        const http         = body['http']           ?? '';
+        const url          = body['url']            ?? '';
+        const whois1       = body['whois1']         ?? '';
+        const whois2       = body['whois2']         ?? '';
+        const whois3       = body['whois3']         ?? '';
+        const whois4       = body['whois4']         ?? '';
+        return createJokerComApiProfileDTO(
+            headers,
+            body,
+            customerId,
+            firstName,
+            lastName,
+            organization,
+            city,
+            [address1, address2],
+            postalCode,
+            state,
+            phone,
+            fax,
+            parseJokerComApiPriceAmount(balance) ?? 0,
+            vatId,
+            lastPayment,
+            lastAccess,
+            adminEmail,
+            robotEmail,
+            split(checkdIp, ','),
+            http,
+            url,
+            [ whois1, whois2, whois3, whois4 ],
+        );
     }
 
     /** query-price-list
