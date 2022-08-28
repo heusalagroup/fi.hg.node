@@ -555,6 +555,7 @@ export class FiHgComJokerDomainManagementService implements FiHgComJokerDomainMa
         const prices : readonly JokerComApiDomainPrice[] | undefined = parseJokerComDomainPrices(body);
 
         return createJokerComApiDomainCheckDTO(
+            domain,
             headers,
             body,
             domainStatus,
