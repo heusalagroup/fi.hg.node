@@ -45,20 +45,52 @@ const LOG = LogService.createLogger('FiHgComJokerDomainManagementService');
 export class FiHgComJokerDomainManagementService implements FiHgComJokerDomainManagementAPI {
 
     private readonly _url : string;
+
     private _authSID : string | undefined;
+    private _time    : number | undefined;
+    private _ttl     : number | undefined;
 
     /**
      * Creates a client service for Joker.com DMAPI
      *
      * @param url For testing purposes, you may use `https://dmapi.ote.joker.com`
-     * @param authId
+     * @param authId Previously saved auth-sid
+     * @param loginTime Previously saved auth-sid creation time
+     * @param ttl Previously saved auth-sid time to life
      */
     public constructor (
-        url : string = 'https://dmapi.joker.com',
-        authId : string | undefined = undefined
+        url            : string = 'https://dmapi.joker.com',
+        authId         : string | undefined = undefined,
+        loginTime      : number | undefined = undefined,
+        ttl            : number | undefined = undefined
     ) {
         this._url = url;
         this._authSID = authId;
+        this._time = loginTime;
+        this._ttl = ttl;
+    }
+
+    /**
+     * Returns `true` if has session key saved
+     */
+    public hasSession() : boolean {
+        return this._authSID !== undefined;
+    }
+
+    /**
+     * Returns `true` if session is OK.
+     *
+     * This method will test the connection by fetching the profile.
+     */
+    public async isReady() : Promise<boolean> {
+        if (this._authSID === undefined) return false;
+        try {
+            await this.queryProfile();
+            return true;
+        } catch (err) {
+            LOG.warn(`isReady: Received error: `, err);
+            return false;
+        }
     }
 
     /** Login using api key
