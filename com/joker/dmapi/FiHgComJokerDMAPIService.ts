@@ -1,37 +1,40 @@
 // Copyright (c) 2022. Heusala Group Oy <info@heusalagroup.fi>. All rights reserved.
 // Copyright (C) 2011-2017 by Jaakko-Heikki Heusala <jheusala@iki.fi>
 
-import {
-    stringify
-} from "querystring";
+import { stringify as queryStringify } from "querystring";
 import { HttpService } from "../../../../core/HttpService";
 import { ContentType } from "../../../../core/request/ContentType";
 import { LogService } from "../../../../core/LogService";
-import { isArray, isBoolean, isString, reduce, split } from "../../../../core/modules/lodash";
+import {
+    forEach,
+    isBoolean,
+    isString, keys, map,
+    reduce,
+    split, startsWith,
+    trim
+} from "../../../../core/modules/lodash";
 import { JokerPrivacyType } from "./types/JokerPrivacyType";
+import { JokerRequestArgumentObject } from "./types/JokerRequestArgumentObject";
+import { JokerStringObject } from "./types/JokerStringObject";
+import { JokerDomainResult } from "./types/JokerDomainResult";
+import { JokerDMAPIResponseObject } from "./types/JokerDMAPIResponseObject";
+import { createJokerComApiLoginDTO, JokerComApiLoginDTO } from "../../../../core/com/joker/types/JokerComApiLoginDTO";
+import { createJokerComApiDomainListDTO, JokerComApiDomainListDTO } from "../../../../core/com/joker/types/JokerComApiDomainListDTO";
+import { createJokerComApiWhoisDTO, JokerComApiWhoisDTO } from "../../../../core/com/joker/types/JokerComApiWhoisDTO";
+import { createJokerComApiRegisterDTO, JokerComApiRegisterDTO } from "../../../../core/com/joker/types/JokerComApiRegisterDTO";
+import { createJokerComApiWhoisContactDTO, JokerComApiWhoisContactDTO } from "../../../../core/com/joker/types/JokerComApiWhoisContactDTO";
+import { explainJokerComApiDomainPriceType, JokerComApiDomainPriceType, parseJokerComApiDomainPriceType } from "../../../../core/com/joker/types/JokerComApiDomainPriceType";
+import { JokerComApiPeriodType } from "../../../../core/com/joker/types/JokerComApiPeriodType";
+import { createJokerComApiDomainCheckDTO, JokerComApiDomainCheckDTO } from "../../../../core/com/joker/types/JokerComApiDomainCheckDTO";
+import { parseJokerComApiDomainStatus } from "../../../../core/com/joker/types/JokerComApiDomainStatus";
+import { createJokerComApiPriceListDTO, JokerComApiPriceListDTO } from "../../../../core/com/joker/types/JokerComApiPriceListDTO";
+import { parseJokerComApiPriceListItemListFromString} from "../../../../core/com/joker/types/JokerComApiPriceListItem";
+import { createJokerComApiDomainPrice, JokerComApiDomainPrice } from "../../../../core/com/joker/types/JokerComApiDomainPrice";
+import { explainJokerComApiPriceAmount, JokerComApiPriceAmount, parseJokerComApiPriceAmount } from "../../../../core/com/joker/types/JokerComApiPriceAmount";
+import { explainJokerComApiCurrency, parseJokerComApiCurrency } from "../../../../core/com/joker/types/JokerComApiCurrency";
+import { explainJokerComApiDomainPeriod, parseJokerComApiDomainPeriod } from "../../../../core/com/joker/types/JokerComApiDomainPeriod";
 
 const LOG = LogService.createLogger('FiHgComJokerDMAPIService');
-
-interface RequestArgumentObject {
-    readonly [key: string]: string;
-}
-
-export interface JokerStringObject {
-    readonly [key: string] : string;
-}
-
-export interface JokerDomainResult {
-    readonly domain: string;
-    readonly expiration : string;
-    readonly status ?: string;
-    readonly jokerns ?: boolean;
-    readonly grants ?: string;
-}
-
-export interface JokerDMAPIResponseObject {
-    readonly headers : JokerStringObject;
-    readonly body : string;
-}
 
 /**
  * Joker.com DMAPI client library for NodeJS
@@ -58,8 +61,8 @@ export class FiHgComJokerDMAPIService {
     /** Login using api key
      * @see https://joker.com/faq/content/26/14/en/login.html
      */
-    public async loginWithApiKey (apiKey : string) {
-        return await this._login({'api-key': apiKey});
+    public async loginWithApiKey (apiKey : string) : Promise<JokerComApiLoginDTO> {
+        return await this._login(undefined, undefined, apiKey);
     }
 
     /** Login using username and password
@@ -68,20 +71,41 @@ export class FiHgComJokerDMAPIService {
     public async loginWithUsername (
         username : string,
         password : string
-    ) {
-        return await this._login({username, password});
+    ) : Promise<JokerComApiLoginDTO> {
+        return await this._login(username, password);
     }
 
     /** Login implementation
      * @see https://joker.com/faq/content/26/14/en/login.html
      */
-    private async _login (args: RequestArgumentObject) {
-        const response = await jokerRequest(this._url,'login', args);
-        const auth_id = response.headers['auth-sid'];
-        const uid = response.headers.uid;
-        const tlds = response.body.split("\n");
-        this._authSID = isArray(auth_id) ? auth_id[0] : auth_id;
-        return {'auth_id':auth_id, 'uid':uid, 'tlds':tlds};
+    private async _login (
+        username : string | undefined,
+        password : string | undefined,
+        apiKey   : string | undefined = undefined
+    ) : Promise<JokerComApiLoginDTO> {
+        if ( apiKey && (username || password) ) {
+            throw new Error(`FiHgComJokerDMAPIService._login: Use "api-key" or "username" and "password"; not both`);
+        }
+        if ( !apiKey && !(username && password) ) {
+            throw new Error(`FiHgComJokerDMAPIService._login: "username" or "password" missing`);
+        }
+        const args = {
+            ...(username !== undefined ? {username: username} : {}),
+            ...(password !== undefined ? {password: password} : {}),
+            ...(apiKey !== undefined ? {'api-key': apiKey} : {})
+        };
+        const response = await jokerPostRequest(this._url,'login', args);
+        const headers = response?.headers;
+        const auth_id = headers['auth-sid'];
+        const uid = headers?.uid;
+        const tlds = split(response?.body, "\n");
+        this._authSID = auth_id;
+        return createJokerComApiLoginDTO(
+            auth_id,
+            uid,
+            tlds,
+            headers
+        );
     }
 
     /** Logout
@@ -89,7 +113,7 @@ export class FiHgComJokerDMAPIService {
      */
     public async logout () {
         if (!this._authSID) throw new Error("FiHgComJokerDMAPIService.logout: No authSID. Try login first.");
-        await jokerRequest(
+        await jokerPostRequest(
             this._url,
             'logout',
             {
@@ -109,14 +133,16 @@ export class FiHgComJokerDMAPIService {
      * @see https://joker.com/faq/content/27/20/en/query_domain_list.html
      */
     public async queryDomainList (
-        pattern: string,
-        from: string,
-        to: string,
-        showStatus: boolean,
-        showGrants: boolean,
-        showJokerNS: boolean
-    ) : Promise<JokerDomainResult[]> {
-        if (!this._authSID) throw new Error("FiHgComJokerDMAPIService.queryDomainList: No authSID. Try login first.");
+        pattern     ?: string | undefined,
+        from        ?: string | undefined,
+        to          ?: string | undefined,
+        showStatus  ?: boolean | undefined,
+        showGrants  ?: boolean | undefined,
+        showJokerNS ?: boolean | undefined
+    ) : Promise<JokerComApiDomainListDTO> {
+        if (!this._authSID) {
+            throw new Error("FiHgComJokerDMAPIService.queryDomainList: No authSID. Try login first.");
+        }
         const opts = {
             'auth-sid': this._authSID,
             ...(pattern? {pattern} : {}),
@@ -126,11 +152,77 @@ export class FiHgComJokerDMAPIService {
             ...(showGrants  !== undefined ? {'showgrants' : showGrants  ? '1' : '0'} : {}),
             ...(showJokerNS !== undefined ? {'showjokerns': showJokerNS ? '1' : '0'} : {})
         };
-        const response = await jokerRequest(this._url,'query-domain-list', opts);
-        const domains = response.body;
-        return domains.split('\n').map(
-            (line: string) => parse_domain(line, showStatus, showJokerNS, showGrants)
+        const response = await jokerPostRequest(this._url,'query-domain-list', opts);
+        const domains = trim(response.body);
+        if (domains === '') {
+            return createJokerComApiDomainListDTO([]);
+        }
+        const domainList = split(domains, '\n').map(
+            (line: string) => parseDomainLine(
+                line,
+                showStatus ?? false,
+                showJokerNS ?? false,
+                showGrants ?? false
+            )
         );
+        return createJokerComApiDomainListDTO(domainList);
+    }
+
+    /** query-whois for domains
+     * At least one of the arguments must be specified
+     * @see https://joker.com/faq/content/79/455/en/query_whois.html
+     * @param domain
+     */
+    public async queryWhoisByDomain (
+        domain : string
+    ) : Promise<JokerComApiWhoisDTO> {
+        return this._queryWhois(domain);
+    }
+
+    /** query-whois for contacts
+     * At least one of the arguments must be specified
+     * @see https://joker.com/faq/content/79/455/en/query_whois.html
+     * @param contact Contact handle
+     */
+    public async queryWhoisByContact (
+        contact : string
+    ) : Promise<JokerComApiWhoisContactDTO> {
+        const dto = await this._queryWhois(undefined, contact);
+        // LOG.debug(`queryWhoisByContact: dto: `, dto);
+        const body = dto.body;
+        const address1 = body['contact.address-1'];
+        const address2 = body['contact.address-2'];
+        const contactDto = createJokerComApiWhoisContactDTO(
+            body['contact.name'],
+            body['contact.organization'],
+            [
+                ...(address1 !== undefined ? [address1] : []),
+                ...(address2 !== undefined ? [address2] : [])
+            ],
+            body['contact.city'],
+            body['contact.postal-code'],
+            body['contact.country'],
+            body['contact.email'],
+            body['contact.phone'],
+            body['contact.handle'],
+            body['contact.created.date'],
+            body['contact.modified.date'],
+            dto.headers,
+            body
+        );
+        // LOG.debug(`queryWhoisByContact: contactDto: `, contactDto);
+        return contactDto;
+    }
+
+    /** query-whois for nameservers
+     * At least one of the arguments must be specified
+     * @see https://joker.com/faq/content/79/455/en/query_whois.html
+     * @param host
+     */
+    public async queryWhoisByHost (
+        host : string
+    ) : Promise<JokerComApiWhoisDTO> {
+        return this._queryWhois(undefined, undefined, host);
     }
 
     /** query-whois
@@ -140,11 +232,11 @@ export class FiHgComJokerDMAPIService {
      * @param contact
      * @param host
      */
-    public async queryWhois (
+    private async _queryWhois (
         domain  ?: string | undefined,
         contact ?: string | undefined,
         host    ?: string | undefined
-    ) : Promise<JokerStringObject> {
+    ) : Promise<JokerComApiWhoisDTO> {
         if (!this._authSID) throw new Error("FiHgComJokerDMAPIService.queryWhois: No auth_id. Try login first.");
         if ( domain === undefined && contact === undefined && host === undefined ) {
             throw new TypeError('FiHgComJokerDMAPIService.queryWhois: Exactly one of accepted options must be specified.');
@@ -155,14 +247,18 @@ export class FiHgComJokerDMAPIService {
             ...( contact !== undefined ? {contact} : {}),
             ...( host !== undefined ? {host} : {})
         };
-        const response = await jokerRequest(this._url,'query-whois', opts);
-        return parseJokerStringObjectResponse(response.body);
+        const response = await jokerPostRequest(this._url,'query-whois', opts);
+        const body = parseJokerStringObjectResponse(response.body);
+        return createJokerComApiWhoisDTO(
+            response.headers,
+            body
+        );
     }
 
     /** query-profile */
     public async queryProfile () {
         if (!this._authSID) throw new Error("FiHgComJokerDMAPIService.queryProfile: No auth_id. Try login first.");
-        const response = await jokerRequest(
+        const response = await jokerPostRequest(
             this._url,
             'query-profile',
             {
@@ -172,36 +268,187 @@ export class FiHgComJokerDMAPIService {
         return parseJokerStringObjectResponse(response.body);
     }
 
+    /** query-price-list
+     * @see https://joker.com/faq/content/79/509/en/query_price_list.html
+     */
+    public async queryPriceList () : Promise<JokerComApiPriceListDTO> {
+        if (!this._authSID) throw new Error("FiHgComJokerDMAPIService.queryPriceList: No auth_id. Try login first.");
+        const response = await jokerGetRequest(
+            this._url,
+            'query-price-list',
+            {
+                'auth-sid': this._authSID
+            },
+            ["0", "1000"]
+        );
+        const headers = response.headers;
+        const columns = headers?.columns;
+        const body = parseJokerComApiPriceListItemListFromString(
+            response.body,
+            columns ? trim(columns).split(',') : []
+        );
+        return createJokerComApiPriceListDTO(
+            headers,
+            body
+        );
+    }
+
     /** domain-renew
      * @see https://joker.com/faq/content/27/22/en/domain_renew.html
      */
     public async domainRenew (
         domain: string,
-        period: string | undefined,
+        period: number | undefined,
         expyear: string | undefined,
         privacy: JokerPrivacyType | undefined,
         maxPrice: number
     ) {
         if ( !this._authSID ) throw new Error(`FiHgComJokerDMAPIService.domainRenew: No auth_id. Try login first.`);
         if ( !domain ) throw new TypeError('FiHgComJokerDMAPIService.domainRenew: Option "domain" is required.');
-        if ( !period && !expyear ) {
+        if ( period === undefined && !expyear ) {
             throw new TypeError('FiHgComJokerDMAPIService.domainRenew: One of "period" or "expyear" is required.');
         }
-        if (period && expyear) {
+        if ( period !== undefined && expyear ) {
             throw new TypeError('FiHgComJokerDMAPIService.domainRenew: Only one of "period" or "expyear" may be used, but not both.');
         }
         if ( maxPrice <= 0 ) {
             throw new TypeError('FiHgComJokerDMAPIService.domainRenew: "max-price" must be above 0')
         }
-        const opts : RequestArgumentObject = {
+        const opts : JokerRequestArgumentObject = {
             'auth-sid': this._authSID,
             domain,
-            ...(period ? {period} : {}),
+            ...(period ? {period: period.toFixed(0)} : {}),
             ...(expyear ? {expyear} : {}),
             ...(privacy ? {privacy}: {}),
             ...(maxPrice !== undefined ? {'max-price': maxPrice.toFixed(2)}: {})
         };
-        await jokerRequest(this._url,'domain-renew', opts);
+        await jokerPostRequest(this._url,'domain-renew', opts);
+    }
+
+    /** domain-check
+     * @param domain
+     * @param checkPrice
+     * @param periodType
+     * @param periods
+     * @param language
+     * @see https://joker.com/faq/content/27/497/en/domain_check.html
+     */
+    public async domainCheck (
+        domain      : string,
+        checkPrice ?: JokerComApiDomainPriceType | undefined,
+        periods    ?: number | undefined,
+        periodType ?: JokerComApiPeriodType,
+        language   ?: string | undefined
+    ) : Promise<JokerComApiDomainCheckDTO> {
+        if ( !this._authSID ) throw new Error(`FiHgComJokerDMAPIService.domainRenew: No auth_id. Try login first.`);
+        if ( !domain ) throw new TypeError('FiHgComJokerDMAPIService.domainRenew: Option "domain" is required.');
+        if ( periods !== undefined ) {
+            if (periodType === JokerComApiPeriodType.YEARS) {
+                if ( periods > 10 || periods <= 0 ) {
+                    throw new TypeError('FiHgComJokerDMAPIService.domainRenew: Option "periods" must be 1-10 when specified as years.');
+                }
+            } else {
+                if (periods < 12) {
+                    throw new TypeError('FiHgComJokerDMAPIService.domainRenew: Option "periods" must be over 12 when specified as months.');
+                }
+            }
+        }
+        const opts : JokerRequestArgumentObject = {
+            'auth-sid': this._authSID,
+            domain,
+            ...(checkPrice ? {'check-price': checkPrice} : {}),
+            ...(periods ? {period: periods.toFixed(0)} : {}),
+            ...(language ? {language}: {})
+        };
+        const response = await jokerPostRequest(
+            this._url,
+            'domain-check',
+            opts,
+            ['0', '1000']
+        );
+        // LOG.debug(`domainCheck: response= `, response);
+        const headers = response.headers;
+        const body = parseJokerStringObjectResponse(response.body);
+        const domainStatus = parseJokerComApiDomainStatus(body['domain-status']);
+        if (!domainStatus) throw new TypeError('domainCheck: Could not parse domain status');
+
+        const prices : readonly JokerComApiDomainPrice[] | undefined = parseJokerComDomainPrices(body);
+
+        return createJokerComApiDomainCheckDTO(
+            headers,
+            body,
+            domainStatus,
+            body['domain-status-reason'],
+            body['domain-class'],
+            prices
+        );
+    }
+
+    /** domain-register
+     * @see https://joker.com/faq/content/27/21/en/domain_register.html
+     * @param domain
+     * @param period Registration period in months, not years!
+     * @param status
+     * @param ownerContact
+     * @param billingContact
+     * @param adminContact
+     * @param techContact
+     * @param nsList
+     * @param autoRenew Optional
+     * @param language Optional
+     * @param registrarTag Only needed for .xxx domains
+     * @param privacy Optional
+     * @param maxPrice Optional
+     */
+    public async domainRegister (
+        domain         : string,
+        period         : number,
+        ownerContact   : string,
+        billingContact : string,
+        adminContact   : string,
+        techContact    : string,
+        nsList         : readonly string[],
+        autoRenew     ?: boolean  | undefined,
+        language      ?: string | undefined,
+        registrarTag  ?: string | undefined,
+        privacy       ?: JokerPrivacyType | undefined,
+        maxPrice      ?: number | undefined
+    ) : Promise<JokerComApiRegisterDTO> {
+        if ( !this._authSID ) throw new Error(`FiHgComJokerDMAPIService.domainRegister: No auth_id. Try login first.`);
+        if ( !domain ) throw new TypeError('FiHgComJokerDMAPIService.domainRegister: Option "domain" is required.');
+        if ( !period ) throw new TypeError('FiHgComJokerDMAPIService.domainRegister: Option "period" is required.');
+        if ( period < 1 ) throw new TypeError('FiHgComJokerDMAPIService.domainRegister: Option "period" must be at least 1.');
+        if ( !ownerContact ) throw new TypeError('FiHgComJokerDMAPIService.domainRegister: Option "ownerContact" is required.');
+        if ( !billingContact ) throw new TypeError('FiHgComJokerDMAPIService.domainRegister: Option "billingContact" is required.');
+        if ( !adminContact ) throw new TypeError('FiHgComJokerDMAPIService.domainRegister: Option "adminContact" is required.');
+        if ( !techContact ) throw new TypeError('FiHgComJokerDMAPIService.domainRegister: Option "techContact" is required.');
+        if ( !nsList ) throw new TypeError('FiHgComJokerDMAPIService.domainRegister: Option "nsList" is required.');
+        if ( (nsList?.length ?? 0) < 2) throw new TypeError('FiHgComJokerDMAPIService.domainModify: Option "nsList" must have at least 2 nameservers.');
+        if ( maxPrice !== undefined && maxPrice <= 0 ) {
+            throw new TypeError('FiHgComJokerDMAPIService.domainRegister: "max-price" must be above 0')
+        }
+        const opts : JokerRequestArgumentObject = {
+            'auth-sid': this._authSID,
+            domain,
+            period: period.toFixed(0),
+            status: 'production',
+            'owner-c': ownerContact,
+            'billing-c': billingContact,
+            'admin-c': adminContact,
+            'tech-c': techContact,
+            'ns-list': nsList.join(':'),
+            ...( autoRenew !== undefined ? {autorenew: autoRenew?'1':'0'}: {}),
+            ...( language ? {language}: {}),
+            ...( registrarTag ? {'registrar-tag': registrarTag}: {}),
+            ...( privacy ? {privacy}: {}),
+            ...( maxPrice !== undefined ? {'max-price': maxPrice.toFixed(2)}: {})
+        };
+        const response = await jokerPostRequest(this._url,'domain-register', opts);
+        const headers = response.headers;
+        return createJokerComApiRegisterDTO(
+            headers['tracking-id'],
+            headers
+        );
     }
 
     /** grants-list
@@ -218,7 +465,7 @@ export class FiHgComJokerDMAPIService {
             domain,
             ...(showKey ? {showkey: showKey} : {}),
         };
-        const response = await jokerRequest(this._url,'grants-list', opts);
+        const response = await jokerPostRequest(this._url,'grants-list', opts);
         const grants = response.body;
         // FIXME: Prepare into array
         return grants;
@@ -246,7 +493,7 @@ export class FiHgComJokerDMAPIService {
             ...(clientUid ? {'client-uid': clientUid} : {}),
             ...(nickname ? {'nick-name': nickname} : {})
         };
-        const response = await jokerRequest(this._url,'grants-invite', opts);
+        const response = await jokerPostRequest(this._url,'grants-invite', opts);
         return ''+response.body === 'ok';
     }
 
@@ -284,55 +531,119 @@ export class FiHgComJokerDMAPIService {
             ...(dnssec !== undefined && ds !== undefined && ds.length >= 5 ? {'ds-5': ds[4]} : {}),
             ...(dnssec !== undefined && ds !== undefined && ds.length >= 6 ? {'ds-6': ds[5]} : {}),
         };
-        await jokerRequest(this._url,'domain-modify', opts);
+        await jokerPostRequest(this._url,'domain-modify', opts);
     }
 
 }
 
 /**
- * Post generic request
+ * Performs POST request to the Joker.com's Domain Management API
+ *
+ * @param baseUrl for Joker.com's Domain Management API
+ * @param name The name of the operation
+ * @param args The request body
+ * @param acceptedStatusCodes Optional array of accepted `status-code` response statuses. By default `["0"]`.
  */
-async function jokerRequest (
+async function jokerPostRequest (
     baseUrl: string,
     name : string,
-    args : RequestArgumentObject
+    args : JokerRequestArgumentObject,
+    acceptedStatusCodes : readonly string[] = ['0']
 ) : Promise<JokerDMAPIResponseObject> {
     const url = `${baseUrl}/request/${name}`;
-    const body = stringify(args);
-    const response = await HttpService.postText(
+    LOG.debug(`jokerRequest: url: "${url}"`);
+    const body = queryStringify(args);
+    LOG.debug(`jokerRequest: body: "${body}"`);
+    const responseString = await HttpService.postText(
         url,
         body,
         {
             'Content-Type': ContentType.X_WWW_FORM_URLENCODED
         }
     );
-    LOG.debug(`_exec: response = `, response);
-    return parseResponseBody(response ?? '');
+    LOG.debug(`jokerRequest: responseString = "${responseString}"`);
+    const response = parseResponseObject(responseString ?? '', acceptedStatusCodes);
+    // LOG.debug(`jokerRequest: response = `, response);
+    return response;
+}
+
+/**
+ * Performs GET request to the Joker.com's Domain Management API
+ *
+ * @param baseUrl for Joker.com's Domain Management API
+ * @param name The name of the operation
+ * @param opts Optional query parameters
+ * @param acceptedStatusCodes Optional array of accepted `status-code` response statuses. By default `["0"]`.
+ */
+async function jokerGetRequest (
+    baseUrl             : string,
+    name                : string,
+    opts                : JokerStringObject | undefined,
+    acceptedStatusCodes : readonly string[] = ['0']
+) : Promise<JokerDMAPIResponseObject> {
+    const url = `${baseUrl}/request/${name}${ opts !== undefined ? `?${queryStringify(opts)}` : '' }`;
+    LOG.debug(`jokerGetRequest: url: "${url}"`);
+    const responseString = await HttpService.getText(
+        url,
+        {
+            'Content-Type': ContentType.X_WWW_FORM_URLENCODED
+        }
+    );
+    LOG.debug(`jokerGetRequest: responseString = "${responseString}"`);
+    const response = parseResponseObject(responseString ?? '', acceptedStatusCodes);
+    LOG.debug(`jokerGetRequest: response = `, response);
+    return response;
 }
 
 /** Parse DMAPI response body */
-function parseResponseBody (data: string) : JokerDMAPIResponseObject {
-    const parts = split('\n\n', data);
+function parseResponseObject (
+    data: string,
+    acceptedStatusCodes : readonly string[] = ['0']
+) : JokerDMAPIResponseObject {
+    const parts = split(data, '\n\n');
+    // LOG.debug(`jokerRequest: parts = `, parts);
     const headersString = parts.shift();
     if (headersString === undefined) {
         throw new TypeError(`parseResponseBody: Could not parse headers from: "${data}"`);
     }
+    // LOG.debug(`jokerRequest: headersString = "${headersString}"`);
+    const headers = parseResponseHeaders(headersString);
+    // LOG.debug(`jokerRequest: headers: `, headers);
+
+    const error = headers?.error;
+    const warning = headers?.warning;
+    const statusCode = headers['status-code'];
+    const statusText = headers['status-text'];
+
+    if (error !== undefined) {
+        throw new Error(`FiHgComJokerDMAPIService: Request failed: ${statusCode}: "${statusText}": ${error}`);
+    }
+
+    if (warning !== undefined) {
+        LOG.warn(`FiHgComJokerDMAPIService: DMAPI Warning: "${warning}"`)
+    }
+
+    if (statusCode !== undefined && !acceptedStatusCodes.includes(statusCode)) {
+        throw new Error(`FiHgComJokerDMAPIService: Request failed: ${statusCode}: "${statusText}"`);
+    }
+
     const bodyString = parts.join('\n\n');
+    // LOG.debug(`jokerRequest: bodyString = "${bodyString}"`);
     return {
-        headers: parseResponseHeaders(headersString),
+        headers: headers,
         body: bodyString
     };
 }
 
 function parseResponseHeaders (headersString: string) : JokerStringObject {
-    const headerLines = headersString.split("\n");
+    const headerLines = split(headersString, "\n");
     return reduce(
         headerLines,
         (obj: JokerStringObject, line: string) : JokerStringObject => {
             if (line.trim() && line.indexOf(': ') < 0) {
                 throw new TypeError(`parseResponseHeaders: Could not parse line: "${line}"`);
             }
-            const parts = split(': ', ""+line);
+            const parts = split(line, ': ');
             const name = parts.shift();
             if (!name) throw new TypeError(`parseResponseHeaders: Could not parse name and value: "${line}"`);
             const value = parts.join(': ');
@@ -355,7 +666,7 @@ function parseJokerNS (line : string) : boolean {
 
 /** Parse single line
  */
-function parse_domain (
+function parseDomainLine (
     line: string,
     showStatus: boolean,
     showJokerNs: boolean,
@@ -369,7 +680,7 @@ function parse_domain (
     // -S-G+J ==> "example.fi 2017-06-02 0"
     // +S+G+J ==> "example.fi 2017-06-02 lock @creator true 0 undef 0"
 
-    const tmp = line.split(' ');
+    const tmp = split(line, ' ');
 
     const domain = tmp.shift();
     if (!domain) throw new TypeError(`FiHgComJokerDMAPIService.parse_domain: Could not parse domain name: "${line}"`);
@@ -380,7 +691,7 @@ function parse_domain (
     const statusString = tmp.shift();
     if (statusString === undefined) throw new TypeError(`FiHgComJokerDMAPIService.parse_domain: Could not parse statusString from "${line}"`);
 
-    const status = statusString.split(',');
+    const status = split(statusString, ',');
     if (!isString(status)) throw new TypeError(`FiHgComJokerDMAPIService.parse_domain: Could not parse status: "${line}"`);
 
     const jokerNsString = tmp.pop();
@@ -402,10 +713,13 @@ function parse_domain (
 }
 
 function parseJokerStringObjectResponse (body: string) : JokerStringObject {
-    const lines = body.split('\n');
+    const lines = split(body, '\n');
     return reduce(
         lines,
         (data : JokerStringObject, line: string) : JokerStringObject => {
+            if (!line) {
+                return data;
+            }
             const parts = split(line, ': ');
             const key = parts.shift();
             if (!key) throw new TypeError(`FiHgComJokerDMAPIService.parseJokerStringObjectResponse: Could not parse key from line "${line}"`);
@@ -417,4 +731,78 @@ function parseJokerStringObjectResponse (body: string) : JokerStringObject {
         },
         {}
     );
+}
+
+function parseJokerComDomainPrices (body : JokerStringObject) : readonly JokerComApiDomainPrice[] | undefined {
+
+    let isPromo    : boolean = false;
+    let promoStart : string | undefined = undefined;
+    let promoEnd   : string | undefined = undefined;
+
+    let results : readonly JokerComApiDomainPrice[] = reduce(
+        keys(body),
+        (list : readonly JokerComApiDomainPrice[], key: string) : readonly JokerComApiDomainPrice[] => {
+
+            if ( key === 'domain-price-promo' ) {
+                const valueString = body[key];
+                const parts = split(valueString, ' ');
+                const startString = parts.shift();
+                if (!startString) throw new TypeError(`FiHgComJokerDMAPIService: parseJokerComDomainPrices: could not parse start promo date from: "${valueString}"`);
+                const endString = parts.shift();
+                if (!endString) throw new TypeError(`FiHgComJokerDMAPIService: parseJokerComDomainPrices: could not parse end promo date from: "${valueString}"`);
+                isPromo = true;
+                promoStart = startString;
+                promoEnd = endString;
+                return list;
+            }
+
+            if (startsWith(key, 'domain-price-')) {
+                const typeString : string = key.substring('domain-price-'.length);
+                const type : JokerComApiDomainPriceType | undefined = parseJokerComApiDomainPriceType( typeString );
+                if (!type) throw new TypeError(`FiHgComJokerDMAPIService: parseJokerComDomainPrices: could not parse price type "${typeString}": ${explainJokerComApiDomainPriceType(typeString)}`);
+
+                const valueString = body[key];
+                const parts = split(valueString, ' ');
+
+                const amountString = parts.shift();
+                const amount = amountString !== undefined ? parseJokerComApiPriceAmount(amountString) : undefined;
+                if (!amount) throw new TypeError(`FiHgComJokerDMAPIService: parseJokerComDomainPrices: could not parse price amount "${amountString}": ${explainJokerComApiPriceAmount(amountString)}`);
+
+                const currencyString = parts.shift();
+                const currency = currencyString !== undefined ? parseJokerComApiCurrency(currencyString) : undefined;
+                if (!currency) throw new TypeError(`FiHgComJokerDMAPIService: parseJokerComDomainPrices: could not parse price currency "${currencyString}": ${explainJokerComApiCurrency(currencyString)}`);
+
+                const periodString = parts.shift();
+                const period = periodString !== undefined ? parseJokerComApiDomainPeriod(periodString) : undefined;
+                if (!period) throw new TypeError(`FiHgComJokerDMAPIService: parseJokerComDomainPrices: could not parse price period "${periodString}": ${explainJokerComApiDomainPeriod(periodString)}`);
+
+                return [
+                    ...list,
+                    createJokerComApiDomainPrice(amount, currency, period, isPromo, promoStart, promoEnd)
+                ];
+            }
+
+            return list;
+        },
+        []
+    );
+
+    // Make sure promo is added (in case it's in wrong order)
+    results = map(
+        results,
+        (item: JokerComApiDomainPrice) : JokerComApiDomainPrice => {
+            if (item.isPromo !== isPromo) {
+                return {
+                    ...item,
+                    isPromo,
+                    promoStart,
+                    promoEnd
+                };
+            } else {
+                return item;
+            }
+        }
+    );
+
+    return results.length === 0 ? undefined : results;
 }
