@@ -6,40 +6,43 @@ import { HttpService } from "../../../../core/HttpService";
 import { ContentType } from "../../../../core/request/ContentType";
 import { LogService } from "../../../../core/LogService";
 import {
-    forEach,
     isBoolean,
-    isString, keys, map,
+    isString,
+    keys,
+    map,
     reduce,
-    split, startsWith,
+    split,
+    startsWith,
     trim
 } from "../../../../core/modules/lodash";
-import { JokerPrivacyType } from "./types/JokerPrivacyType";
-import { JokerRequestArgumentObject } from "./types/JokerRequestArgumentObject";
-import { JokerStringObject } from "./types/JokerStringObject";
-import { JokerDomainResult } from "./types/JokerDomainResult";
-import { JokerDMAPIResponseObject } from "./types/JokerDMAPIResponseObject";
-import { createJokerComApiLoginDTO, JokerComApiLoginDTO } from "../../../../core/com/joker/types/JokerComApiLoginDTO";
-import { createJokerComApiDomainListDTO, JokerComApiDomainListDTO } from "../../../../core/com/joker/types/JokerComApiDomainListDTO";
-import { createJokerComApiWhoisDTO, JokerComApiWhoisDTO } from "../../../../core/com/joker/types/JokerComApiWhoisDTO";
-import { createJokerComApiRegisterDTO, JokerComApiRegisterDTO } from "../../../../core/com/joker/types/JokerComApiRegisterDTO";
-import { createJokerComApiWhoisContactDTO, JokerComApiWhoisContactDTO } from "../../../../core/com/joker/types/JokerComApiWhoisContactDTO";
-import { explainJokerComApiDomainPriceType, JokerComApiDomainPriceType, parseJokerComApiDomainPriceType } from "../../../../core/com/joker/types/JokerComApiDomainPriceType";
-import { JokerComApiPeriodType } from "../../../../core/com/joker/types/JokerComApiPeriodType";
-import { createJokerComApiDomainCheckDTO, JokerComApiDomainCheckDTO } from "../../../../core/com/joker/types/JokerComApiDomainCheckDTO";
-import { parseJokerComApiDomainStatus } from "../../../../core/com/joker/types/JokerComApiDomainStatus";
-import { createJokerComApiPriceListDTO, JokerComApiPriceListDTO } from "../../../../core/com/joker/types/JokerComApiPriceListDTO";
-import { parseJokerComApiPriceListItemListFromString} from "../../../../core/com/joker/types/JokerComApiPriceListItem";
-import { createJokerComApiDomainPrice, JokerComApiDomainPrice } from "../../../../core/com/joker/types/JokerComApiDomainPrice";
-import { explainJokerComApiPriceAmount, JokerComApiPriceAmount, parseJokerComApiPriceAmount } from "../../../../core/com/joker/types/JokerComApiPriceAmount";
-import { explainJokerComApiCurrency, parseJokerComApiCurrency } from "../../../../core/com/joker/types/JokerComApiCurrency";
-import { explainJokerComApiDomainPeriod, parseJokerComApiDomainPeriod } from "../../../../core/com/joker/types/JokerComApiDomainPeriod";
+import { JokerPrivacyType } from "../../../../core/com/joker/dmapi/types/JokerPrivacyType";
+import { JokerRequestArgumentObject } from "../../../../core/com/joker/dmapi/types/JokerRequestArgumentObject";
+import { JokerStringObject } from "../../../../core/com/joker/dmapi/types/JokerStringObject";
+import { JokerDomainResult } from "../../../../core/com/joker/dmapi/types/JokerDomainResult";
+import { JokerDMAPIResponseObject } from "../../../../core/com/joker/dmapi/types/JokerDMAPIResponseObject";
+import { createJokerComApiLoginDTO, JokerComApiLoginDTO } from "../../../../core/com/joker/dmapi/types/JokerComApiLoginDTO";
+import { createJokerComApiDomainListDTO, JokerComApiDomainListDTO } from "../../../../core/com/joker/dmapi/types/JokerComApiDomainListDTO";
+import { createJokerComApiWhoisDTO, JokerComApiWhoisDTO } from "../../../../core/com/joker/dmapi/types/JokerComApiWhoisDTO";
+import { createJokerComApiRegisterDTO, JokerComApiRegisterDTO } from "../../../../core/com/joker/dmapi/types/JokerComApiRegisterDTO";
+import { createJokerComApiWhoisContactDTO, JokerComApiWhoisContactDTO } from "../../../../core/com/joker/dmapi/types/JokerComApiWhoisContactDTO";
+import { explainJokerComApiDomainPriceType, JokerComApiDomainPriceType, parseJokerComApiDomainPriceType } from "../../../../core/com/joker/dmapi/types/JokerComApiDomainPriceType";
+import { JokerComApiPeriodType } from "../../../../core/com/joker/dmapi/types/JokerComApiPeriodType";
+import { createJokerComApiDomainCheckDTO, JokerComApiDomainCheckDTO } from "../../../../core/com/joker/dmapi/types/JokerComApiDomainCheckDTO";
+import { parseJokerComApiDomainStatus } from "../../../../core/com/joker/dmapi/types/JokerComApiDomainStatus";
+import { createJokerComApiPriceListDTO, JokerComApiPriceListDTO } from "../../../../core/com/joker/dmapi/types/JokerComApiPriceListDTO";
+import { parseJokerComApiPriceListItemListFromString} from "../../../../core/com/joker/dmapi/types/JokerComApiPriceListItem";
+import { createJokerComApiDomainPrice, JokerComApiDomainPrice } from "../../../../core/com/joker/dmapi/types/JokerComApiDomainPrice";
+import { explainJokerComApiPriceAmount, parseJokerComApiPriceAmount } from "../../../../core/com/joker/dmapi/types/JokerComApiPriceAmount";
+import { explainJokerComApiCurrency, parseJokerComApiCurrency } from "../../../../core/com/joker/dmapi/types/JokerComApiCurrency";
+import { explainJokerComApiDomainPeriod, parseJokerComApiDomainPeriod } from "../../../../core/com/joker/dmapi/types/JokerComApiDomainPeriod";
+import { FiHgComJokerDomainManagementAPI } from "../../../../core/com/joker/dmapi/FiHgComJokerDomainManagementAPI";
 
-const LOG = LogService.createLogger('FiHgComJokerDMAPIService');
+const LOG = LogService.createLogger('FiHgComJokerDomainManagementService');
 
 /**
  * Joker.com DMAPI client library for NodeJS
  */
-export class FiHgComJokerDMAPIService {
+export class FiHgComJokerDomainManagementService implements FiHgComJokerDomainManagementAPI {
 
     private readonly _url : string;
     private _authSID : string | undefined;
@@ -84,10 +87,10 @@ export class FiHgComJokerDMAPIService {
         apiKey   : string | undefined = undefined
     ) : Promise<JokerComApiLoginDTO> {
         if ( apiKey && (username || password) ) {
-            throw new Error(`FiHgComJokerDMAPIService._login: Use "api-key" or "username" and "password"; not both`);
+            throw new Error(`FiHgComJokerDomainManagementService._login: Use "api-key" or "username" and "password"; not both`);
         }
         if ( !apiKey && !(username && password) ) {
-            throw new Error(`FiHgComJokerDMAPIService._login: "username" or "password" missing`);
+            throw new Error(`FiHgComJokerDomainManagementService._login: "username" or "password" missing`);
         }
         const args = {
             ...(username !== undefined ? {username: username} : {}),
@@ -112,7 +115,7 @@ export class FiHgComJokerDMAPIService {
      * @see https://joker.com/faq/content/26/15/en/logout.html
      */
     public async logout () {
-        if (!this._authSID) throw new Error("FiHgComJokerDMAPIService.logout: No authSID. Try login first.");
+        if (!this._authSID) throw new Error("FiHgComJokerDomainManagementService.logout: No authSID. Try login first.");
         await jokerPostRequest(
             this._url,
             'logout',
@@ -141,7 +144,7 @@ export class FiHgComJokerDMAPIService {
         showJokerNS ?: boolean | undefined
     ) : Promise<JokerComApiDomainListDTO> {
         if (!this._authSID) {
-            throw new Error("FiHgComJokerDMAPIService.queryDomainList: No authSID. Try login first.");
+            throw new Error("FiHgComJokerDomainManagementService.queryDomainList: No authSID. Try login first.");
         }
         const opts = {
             'auth-sid': this._authSID,
@@ -237,9 +240,9 @@ export class FiHgComJokerDMAPIService {
         contact ?: string | undefined,
         host    ?: string | undefined
     ) : Promise<JokerComApiWhoisDTO> {
-        if (!this._authSID) throw new Error("FiHgComJokerDMAPIService.queryWhois: No auth_id. Try login first.");
+        if (!this._authSID) throw new Error("FiHgComJokerDomainManagementService.queryWhois: No auth_id. Try login first.");
         if ( domain === undefined && contact === undefined && host === undefined ) {
-            throw new TypeError('FiHgComJokerDMAPIService.queryWhois: Exactly one of accepted options must be specified.');
+            throw new TypeError('FiHgComJokerDomainManagementService.queryWhois: Exactly one of accepted options must be specified.');
         }
         const opts = {
             'auth-sid': this._authSID,
@@ -256,8 +259,8 @@ export class FiHgComJokerDMAPIService {
     }
 
     /** query-profile */
-    public async queryProfile () {
-        if (!this._authSID) throw new Error("FiHgComJokerDMAPIService.queryProfile: No auth_id. Try login first.");
+    public async queryProfile () : Promise<JokerStringObject> {
+        if (!this._authSID) throw new Error("FiHgComJokerDomainManagementService.queryProfile: No auth_id. Try login first.");
         const response = await jokerPostRequest(
             this._url,
             'query-profile',
@@ -272,7 +275,7 @@ export class FiHgComJokerDMAPIService {
      * @see https://joker.com/faq/content/79/509/en/query_price_list.html
      */
     public async queryPriceList () : Promise<JokerComApiPriceListDTO> {
-        if (!this._authSID) throw new Error("FiHgComJokerDMAPIService.queryPriceList: No auth_id. Try login first.");
+        if (!this._authSID) throw new Error("FiHgComJokerDomainManagementService.queryPriceList: No auth_id. Try login first.");
         const response = await jokerGetRequest(
             this._url,
             'query-price-list',
@@ -303,16 +306,16 @@ export class FiHgComJokerDMAPIService {
         privacy: JokerPrivacyType | undefined,
         maxPrice: number
     ) {
-        if ( !this._authSID ) throw new Error(`FiHgComJokerDMAPIService.domainRenew: No auth_id. Try login first.`);
-        if ( !domain ) throw new TypeError('FiHgComJokerDMAPIService.domainRenew: Option "domain" is required.');
+        if ( !this._authSID ) throw new Error(`FiHgComJokerDomainManagementService.domainRenew: No auth_id. Try login first.`);
+        if ( !domain ) throw new TypeError('FiHgComJokerDomainManagementService.domainRenew: Option "domain" is required.');
         if ( period === undefined && !expyear ) {
-            throw new TypeError('FiHgComJokerDMAPIService.domainRenew: One of "period" or "expyear" is required.');
+            throw new TypeError('FiHgComJokerDomainManagementService.domainRenew: One of "period" or "expyear" is required.');
         }
         if ( period !== undefined && expyear ) {
-            throw new TypeError('FiHgComJokerDMAPIService.domainRenew: Only one of "period" or "expyear" may be used, but not both.');
+            throw new TypeError('FiHgComJokerDomainManagementService.domainRenew: Only one of "period" or "expyear" may be used, but not both.');
         }
         if ( maxPrice <= 0 ) {
-            throw new TypeError('FiHgComJokerDMAPIService.domainRenew: "max-price" must be above 0')
+            throw new TypeError('FiHgComJokerDomainManagementService.domainRenew: "max-price" must be above 0')
         }
         const opts : JokerRequestArgumentObject = {
             'auth-sid': this._authSID,
@@ -340,16 +343,16 @@ export class FiHgComJokerDMAPIService {
         periodType ?: JokerComApiPeriodType,
         language   ?: string | undefined
     ) : Promise<JokerComApiDomainCheckDTO> {
-        if ( !this._authSID ) throw new Error(`FiHgComJokerDMAPIService.domainRenew: No auth_id. Try login first.`);
-        if ( !domain ) throw new TypeError('FiHgComJokerDMAPIService.domainRenew: Option "domain" is required.');
+        if ( !this._authSID ) throw new Error(`FiHgComJokerDomainManagementService.domainRenew: No auth_id. Try login first.`);
+        if ( !domain ) throw new TypeError('FiHgComJokerDomainManagementService.domainRenew: Option "domain" is required.');
         if ( periods !== undefined ) {
             if (periodType === JokerComApiPeriodType.YEARS) {
                 if ( periods > 10 || periods <= 0 ) {
-                    throw new TypeError('FiHgComJokerDMAPIService.domainRenew: Option "periods" must be 1-10 when specified as years.');
+                    throw new TypeError('FiHgComJokerDomainManagementService.domainRenew: Option "periods" must be 1-10 when specified as years.');
                 }
             } else {
                 if (periods < 12) {
-                    throw new TypeError('FiHgComJokerDMAPIService.domainRenew: Option "periods" must be over 12 when specified as months.');
+                    throw new TypeError('FiHgComJokerDomainManagementService.domainRenew: Option "periods" must be over 12 when specified as months.');
                 }
             }
         }
@@ -414,18 +417,18 @@ export class FiHgComJokerDMAPIService {
         privacy       ?: JokerPrivacyType | undefined,
         maxPrice      ?: number | undefined
     ) : Promise<JokerComApiRegisterDTO> {
-        if ( !this._authSID ) throw new Error(`FiHgComJokerDMAPIService.domainRegister: No auth_id. Try login first.`);
-        if ( !domain ) throw new TypeError('FiHgComJokerDMAPIService.domainRegister: Option "domain" is required.');
-        if ( !period ) throw new TypeError('FiHgComJokerDMAPIService.domainRegister: Option "period" is required.');
-        if ( period < 1 ) throw new TypeError('FiHgComJokerDMAPIService.domainRegister: Option "period" must be at least 1.');
-        if ( !ownerContact ) throw new TypeError('FiHgComJokerDMAPIService.domainRegister: Option "ownerContact" is required.');
-        if ( !billingContact ) throw new TypeError('FiHgComJokerDMAPIService.domainRegister: Option "billingContact" is required.');
-        if ( !adminContact ) throw new TypeError('FiHgComJokerDMAPIService.domainRegister: Option "adminContact" is required.');
-        if ( !techContact ) throw new TypeError('FiHgComJokerDMAPIService.domainRegister: Option "techContact" is required.');
-        if ( !nsList ) throw new TypeError('FiHgComJokerDMAPIService.domainRegister: Option "nsList" is required.');
-        if ( (nsList?.length ?? 0) < 2) throw new TypeError('FiHgComJokerDMAPIService.domainModify: Option "nsList" must have at least 2 nameservers.');
+        if ( !this._authSID ) throw new Error(`FiHgComJokerDomainManagementService.domainRegister: No auth_id. Try login first.`);
+        if ( !domain ) throw new TypeError('FiHgComJokerDomainManagementService.domainRegister: Option "domain" is required.');
+        if ( !period ) throw new TypeError('FiHgComJokerDomainManagementService.domainRegister: Option "period" is required.');
+        if ( period < 1 ) throw new TypeError('FiHgComJokerDomainManagementService.domainRegister: Option "period" must be at least 1.');
+        if ( !ownerContact ) throw new TypeError('FiHgComJokerDomainManagementService.domainRegister: Option "ownerContact" is required.');
+        if ( !billingContact ) throw new TypeError('FiHgComJokerDomainManagementService.domainRegister: Option "billingContact" is required.');
+        if ( !adminContact ) throw new TypeError('FiHgComJokerDomainManagementService.domainRegister: Option "adminContact" is required.');
+        if ( !techContact ) throw new TypeError('FiHgComJokerDomainManagementService.domainRegister: Option "techContact" is required.');
+        if ( !nsList ) throw new TypeError('FiHgComJokerDomainManagementService.domainRegister: Option "nsList" is required.');
+        if ( (nsList?.length ?? 0) < 2) throw new TypeError('FiHgComJokerDomainManagementService.domainModify: Option "nsList" must have at least 2 nameservers.');
         if ( maxPrice !== undefined && maxPrice <= 0 ) {
-            throw new TypeError('FiHgComJokerDMAPIService.domainRegister: "max-price" must be above 0')
+            throw new TypeError('FiHgComJokerDomainManagementService.domainRegister: "max-price" must be above 0')
         }
         const opts : JokerRequestArgumentObject = {
             'auth-sid': this._authSID,
@@ -458,7 +461,7 @@ export class FiHgComJokerDMAPIService {
         domain: string,
         showKey: string
     ) : Promise<string> {
-        if ( !this._authSID ) throw new Error(`FiHgComJokerDMAPIService.grantsList: No auth_id. Try login first.`);
+        if ( !this._authSID ) throw new Error(`FiHgComJokerDomainManagementService.grantsList: No auth_id. Try login first.`);
         if ( !domain ) throw new TypeError('Option "domain" is required.');
         const opts = {
             'auth-sid': this._authSID,
@@ -481,10 +484,10 @@ export class FiHgComJokerDMAPIService {
         role: string,
         nickname: string
     ) :Promise<boolean> {
-        if ( !this._authSID ) throw new Error(`FiHgComJokerDMAPIService.grantsInvite: No auth_id. Try login first.`);
-        if ( !domain ) throw new TypeError('FiHgComJokerDMAPIService.grantsInvite: Option "domain" is required.');
-        if ( !email ) throw new TypeError('FiHgComJokerDMAPIService.grantsInvite: Option "email" is required.');
-        if ( !role ) throw new TypeError('FiHgComJokerDMAPIService.grantsInvite: Option "role" is required.');
+        if ( !this._authSID ) throw new Error(`FiHgComJokerDomainManagementService.grantsInvite: No auth_id. Try login first.`);
+        if ( !domain ) throw new TypeError('FiHgComJokerDomainManagementService.grantsInvite: Option "domain" is required.');
+        if ( !email ) throw new TypeError('FiHgComJokerDomainManagementService.grantsInvite: Option "email" is required.');
+        if ( !role ) throw new TypeError('FiHgComJokerDomainManagementService.grantsInvite: Option "role" is required.');
         const opts = {
             'auth-sid': this._authSID,
             domain,
@@ -510,11 +513,11 @@ export class FiHgComJokerDMAPIService {
         dnssec         ?: boolean | undefined,
         ds             ?: readonly string[] | undefined,
     ) {
-        if (!this._authSID) throw new Error("FiHgComJokerDMAPIService.domainModify: No auth_id. Try login first.");
-        if (!domain) throw new TypeError('FiHgComJokerDMAPIService.domainModify: Option "domain" is required.');
-        if (dnssec === true && !ds) throw new TypeError('FiHgComJokerDMAPIService.domainModify: Option "ds" is required when "dnssec" enabled.');
-        if (dnssec === true && (ds?.length ?? 0) < 2) throw new TypeError('FiHgComJokerDMAPIService.domainModify: Option "ds" must have at least 2 items.');
-        if (nsList !== undefined && (nsList?.length ?? 0) < 2) throw new TypeError('FiHgComJokerDMAPIService.domainModify: Option "nsList" must have at least 2 nameservers.');
+        if (!this._authSID) throw new Error("FiHgComJokerDomainManagementService.domainModify: No auth_id. Try login first.");
+        if (!domain) throw new TypeError('FiHgComJokerDomainManagementService.domainModify: Option "domain" is required.');
+        if (dnssec === true && !ds) throw new TypeError('FiHgComJokerDomainManagementService.domainModify: Option "ds" is required when "dnssec" enabled.');
+        if (dnssec === true && (ds?.length ?? 0) < 2) throw new TypeError('FiHgComJokerDomainManagementService.domainModify: Option "ds" must have at least 2 items.');
+        if (nsList !== undefined && (nsList?.length ?? 0) < 2) throw new TypeError('FiHgComJokerDomainManagementService.domainModify: Option "nsList" must have at least 2 nameservers.');
         const opts = {
             'auth-sid': this._authSID,
             domain,
@@ -616,15 +619,15 @@ function parseResponseObject (
     const statusText = headers['status-text'];
 
     if (error !== undefined) {
-        throw new Error(`FiHgComJokerDMAPIService: Request failed: ${statusCode}: "${statusText}": ${error}`);
+        throw new Error(`FiHgComJokerDomainManagementService: Request failed: ${statusCode}: "${statusText}": ${error}`);
     }
 
     if (warning !== undefined) {
-        LOG.warn(`FiHgComJokerDMAPIService: DMAPI Warning: "${warning}"`)
+        LOG.warn(`FiHgComJokerDomainManagementService: DMAPI Warning: "${warning}"`)
     }
 
     if (statusCode !== undefined && !acceptedStatusCodes.includes(statusCode)) {
-        throw new Error(`FiHgComJokerDMAPIService: Request failed: ${statusCode}: "${statusText}"`);
+        throw new Error(`FiHgComJokerDomainManagementService: Request failed: ${statusCode}: "${statusText}"`);
     }
 
     const bodyString = parts.join('\n\n');
@@ -659,7 +662,7 @@ function parseResponseHeaders (headersString: string) : JokerStringObject {
 /** Parse single line */
 function parseJokerNS (line : string) : boolean {
     if (! ((line === '1') || (line === '0')) ) {
-        throw new TypeError(`FiHgComJokerDMAPIService.parseJokerNS: Could not parse "jokerns": "${line}"`);
+        throw new TypeError(`FiHgComJokerDomainManagementService.parseJokerNS: Could not parse "jokerns": "${line}"`);
     }
     return line === '1';
 }
@@ -683,23 +686,23 @@ function parseDomainLine (
     const tmp = split(line, ' ');
 
     const domain = tmp.shift();
-    if (!domain) throw new TypeError(`FiHgComJokerDMAPIService.parse_domain: Could not parse domain name: "${line}"`);
+    if (!domain) throw new TypeError(`FiHgComJokerDomainManagementService.parse_domain: Could not parse domain name: "${line}"`);
 
     const exp_date = tmp.shift();
-    if (!exp_date) throw new TypeError(`FiHgComJokerDMAPIService.parse_domain: Could not parse domain exp_date: "${line}"`);
+    if (!exp_date) throw new TypeError(`FiHgComJokerDomainManagementService.parse_domain: Could not parse domain exp_date: "${line}"`);
 
     const statusString = tmp.shift();
-    if (statusString === undefined) throw new TypeError(`FiHgComJokerDMAPIService.parse_domain: Could not parse statusString from "${line}"`);
+    if (statusString === undefined) throw new TypeError(`FiHgComJokerDomainManagementService.parse_domain: Could not parse statusString from "${line}"`);
 
     const status = split(statusString, ',');
-    if (!isString(status)) throw new TypeError(`FiHgComJokerDMAPIService.parse_domain: Could not parse status: "${line}"`);
+    if (!isString(status)) throw new TypeError(`FiHgComJokerDomainManagementService.parse_domain: Could not parse status: "${line}"`);
 
     const jokerNsString = tmp.pop();
     if (jokerNsString === undefined) {
-        throw new TypeError(`FiHgComJokerDMAPIService.parse_domain: Could not parse jokerNs string: "${line}"`);
+        throw new TypeError(`FiHgComJokerDomainManagementService.parse_domain: Could not parse jokerNs string: "${line}"`);
     }
     const jokerNS = parseJokerNS(jokerNsString);
-    if (!isBoolean(jokerNS)) throw new TypeError(`FiHgComJokerDMAPIService.parse_domain: Could not parse jokerNs: "${line}"`);
+    if (!isBoolean(jokerNS)) throw new TypeError(`FiHgComJokerDomainManagementService.parse_domain: Could not parse jokerNs: "${line}"`);
 
     const grants = tmp.join(' ');
 
@@ -722,7 +725,7 @@ function parseJokerStringObjectResponse (body: string) : JokerStringObject {
             }
             const parts = split(line, ': ');
             const key = parts.shift();
-            if (!key) throw new TypeError(`FiHgComJokerDMAPIService.parseJokerStringObjectResponse: Could not parse key from line "${line}"`);
+            if (!key) throw new TypeError(`FiHgComJokerDomainManagementService.parseJokerStringObjectResponse: Could not parse key from line "${line}"`);
             const value = parts.join(': ');
             return {
                 ...data,
@@ -747,9 +750,9 @@ function parseJokerComDomainPrices (body : JokerStringObject) : readonly JokerCo
                 const valueString = body[key];
                 const parts = split(valueString, ' ');
                 const startString = parts.shift();
-                if (!startString) throw new TypeError(`FiHgComJokerDMAPIService: parseJokerComDomainPrices: could not parse start promo date from: "${valueString}"`);
+                if (!startString) throw new TypeError(`FiHgComJokerDomainManagementService: parseJokerComDomainPrices: could not parse start promo date from: "${valueString}"`);
                 const endString = parts.shift();
-                if (!endString) throw new TypeError(`FiHgComJokerDMAPIService: parseJokerComDomainPrices: could not parse end promo date from: "${valueString}"`);
+                if (!endString) throw new TypeError(`FiHgComJokerDomainManagementService: parseJokerComDomainPrices: could not parse end promo date from: "${valueString}"`);
                 isPromo = true;
                 promoStart = startString;
                 promoEnd = endString;
@@ -759,22 +762,22 @@ function parseJokerComDomainPrices (body : JokerStringObject) : readonly JokerCo
             if (startsWith(key, 'domain-price-')) {
                 const typeString : string = key.substring('domain-price-'.length);
                 const type : JokerComApiDomainPriceType | undefined = parseJokerComApiDomainPriceType( typeString );
-                if (!type) throw new TypeError(`FiHgComJokerDMAPIService: parseJokerComDomainPrices: could not parse price type "${typeString}": ${explainJokerComApiDomainPriceType(typeString)}`);
+                if (!type) throw new TypeError(`FiHgComJokerDomainManagementService: parseJokerComDomainPrices: could not parse price type "${typeString}": ${explainJokerComApiDomainPriceType(typeString)}`);
 
                 const valueString = body[key];
                 const parts = split(valueString, ' ');
 
                 const amountString = parts.shift();
                 const amount = amountString !== undefined ? parseJokerComApiPriceAmount(amountString) : undefined;
-                if (!amount) throw new TypeError(`FiHgComJokerDMAPIService: parseJokerComDomainPrices: could not parse price amount "${amountString}": ${explainJokerComApiPriceAmount(amountString)}`);
+                if (!amount) throw new TypeError(`FiHgComJokerDomainManagementService: parseJokerComDomainPrices: could not parse price amount "${amountString}": ${explainJokerComApiPriceAmount(amountString)}`);
 
                 const currencyString = parts.shift();
                 const currency = currencyString !== undefined ? parseJokerComApiCurrency(currencyString) : undefined;
-                if (!currency) throw new TypeError(`FiHgComJokerDMAPIService: parseJokerComDomainPrices: could not parse price currency "${currencyString}": ${explainJokerComApiCurrency(currencyString)}`);
+                if (!currency) throw new TypeError(`FiHgComJokerDomainManagementService: parseJokerComDomainPrices: could not parse price currency "${currencyString}": ${explainJokerComApiCurrency(currencyString)}`);
 
                 const periodString = parts.shift();
                 const period = periodString !== undefined ? parseJokerComApiDomainPeriod(periodString) : undefined;
-                if (!period) throw new TypeError(`FiHgComJokerDMAPIService: parseJokerComDomainPrices: could not parse price period "${periodString}": ${explainJokerComApiDomainPeriod(periodString)}`);
+                if (!period) throw new TypeError(`FiHgComJokerDomainManagementService: parseJokerComDomainPrices: could not parse price period "${periodString}": ${explainJokerComApiDomainPeriod(periodString)}`);
 
                 return [
                     ...list,
