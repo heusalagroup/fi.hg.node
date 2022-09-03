@@ -15,11 +15,9 @@ export class HgNode {
 
     public static setLogLevel (level: LogLevel) {
         LOG.setLogLevel(level);
-        RequestClient.setLogLevel(level);
-        NodeRequestClient.setLogLevel(level);
     }
 
-    public initialize () {
+    public static initialize () {
 
         RequestClient.useClient(
             new NodeRequestClient(HTTP, HTTPS)
