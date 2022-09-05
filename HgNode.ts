@@ -14,6 +14,14 @@ export class HgNode {
         LOG.setLogLevel(level);
     }
 
+    /**
+     * This method will initialize our libraries using frontend implementations.
+     *
+     * Right now it will call `RequestClient.setClient()` with a standard NodeJS
+     * implementation. It has a dependency to NodeJS's http and https modules.
+     *
+     * @param requestClient
+     */
     public static initialize (
         requestClient ?: RequestClientInterface | undefined
     ) {
@@ -22,7 +30,7 @@ export class HgNode {
             const HTTPS = require('https');
             requestClient = new NodeRequestClient(HTTP, HTTPS);
         }
-        RequestClient.useClient(requestClient);
+        RequestClient.setClient(requestClient);
     }
 
 }
