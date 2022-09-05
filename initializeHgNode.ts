@@ -1,15 +1,12 @@
 // Copyright (c) 2022. Heusala Group Oy <info@heusalagroup.fi>. All rights reserved.
 
 import { RequestClient } from "../core/RequestClient";
-import { REQUEST_CLIENT_NODE_ENABLED } from "../core/requestClient/request-client-constants";
 import { NodeRequestClient } from "./requestClient/node/NodeRequestClient";
 import { LogLevel } from "../core/types/LogLevel";
 import { LogService } from "../core/LogService";
+import { RequestClientInterface } from "../core/requestClient/RequestClientInterface";
 
 const LOG = LogService.createLogger('initializeHgNode');
-
-export const HTTP = REQUEST_CLIENT_NODE_ENABLED ? require('http') : undefined;
-export const HTTPS = REQUEST_CLIENT_NODE_ENABLED ? require('https') : undefined;
 
 export class HgNode {
 
@@ -17,12 +14,15 @@ export class HgNode {
         LOG.setLogLevel(level);
     }
 
-    public static initialize () {
-
-        RequestClient.useClient(
-            new NodeRequestClient(HTTP, HTTPS)
-        );
-
+    public static initialize (
+        requestClient ?: RequestClientInterface | undefined
+    ) {
+        if (!requestClient) {
+            const HTTP = require('http');
+            const HTTPS = require('https');
+            requestClient = new NodeRequestClient(HTTP, HTTPS);
+        }
+        RequestClient.useClient(requestClient);
     }
 
 }
