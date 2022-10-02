@@ -143,17 +143,17 @@ export class RequestRouter {
 
                     const controllerUniqueAttributeNames : ModelAttributeProperty[] = reduce(
                         keys(item.controllerProperties),
-                        (arr2: ModelAttributeProperty[], propertyKey : string) => {
+                        (arr2: ModelAttributeProperty[], propertyKey : string) : ModelAttributeProperty[] => {
 
                             LOG.debug('_initializeRequiredModelAttributeNames: propertyKey: ', propertyKey);
 
                             const propertyValue : RequestControllerMethodObject = item.controllerProperties[propertyKey];
 
-                            const propertyAttributeNames : string[] = propertyValue.modelAttributes;
+                            const propertyAttributeNames : readonly string[] = propertyValue.modelAttributes;
 
                             LOG.debug('_initializeRequiredModelAttributeNames: propertyAttributeNames: ', propertyAttributeNames);
 
-                            const params : (RequestParamObject|null)[] = propertyValue.params;
+                            const params : (RequestParamObject|null)[] = [...propertyValue.params];
 
                             forEach(propertyAttributeNames, (attributeName : string) => {
                                 LOG.debug('_initializeRequiredModelAttributeNames: attributeName: ', attributeName);
@@ -573,7 +573,7 @@ export class RequestRouter {
                         forEach(controllerPropertyNames, (propertyKey: string) => {
 
                             const propertyValue  : RequestControllerMethodObject  = controllerProperties[propertyKey];
-                            const propertyParams : (RequestParamObject|null)[] = propertyValue.params;
+                            const propertyParams : readonly (RequestParamObject|null)[] = propertyValue.params;
 
                             forEach(propertyValue.mappings, (propertyMappingItem : RequestMappingObject) => {
 
