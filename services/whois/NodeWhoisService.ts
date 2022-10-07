@@ -69,11 +69,19 @@ export class NodeWhoisService implements WhoisService {
             ...(options ?? {})
         };
 
+        if (!_options.server) {
+            throw new TypeError('options.server missing');
+        }
+
         const server: WhoisServerOptions | undefined = NodeWhoisService._parseServerOptions(_options.server);
         if ( !server ) {
             throw new Error(`whoisLookup: no whois server is known for this kind of object: ${_options.server}`);
         }
         LOG.debug(`server = `, server);
+
+        if (!server.port) {
+            throw new TypeError('server.port missing');
+        }
 
         const sockOpts: NetConnectOpts = {
             host: server.host,
@@ -94,6 +102,10 @@ export class NodeWhoisService implements WhoisService {
             socket.setEncoding(_options.encoding);
         }
 
+        if (!server.query) {
+            throw new TypeError('server.query missing');
+        }
+
         const buffer = await NodeWhoisService._whoisSocketQuery(
             socket,
             server.punycode !== false && _options.punycode !== false ? toASCII(addr) : addr,
@@ -107,6 +119,13 @@ export class NodeWhoisService implements WhoisService {
             throw Error(data.substring('ERROR:'.length).trim());
         }
 
+        if (!_options.follow) {
+            throw new TypeError('options.follow missing');
+        }
+
+        if (!server.host) {
+            throw new TypeError('server.host missing');
+        }
         if ( _options.follow > 0 ) {
             const nextServer = NodeWhoisService._parseNextServer(data);
             if ( nextServer && nextServer !== server.host ) {
@@ -149,7 +168,8 @@ export class NodeWhoisService implements WhoisService {
                 port: parts.length >= 2 ? parseInteger(parts[1]) : 43
             };
         }
-        if ( !server.host ) {
+        const host = server.host;
+        if ( !host ) {
             return undefined;
         }
         if (!server.port) {
@@ -166,7 +186,7 @@ export class NodeWhoisService implements WhoisService {
         }
         return {
             ...server,
-            host: server.host.trim()
+            host: host.trim()
         };
     }
 
