@@ -3,8 +3,7 @@
 import { URL, URLSearchParams } from "url";
 import {
     RequestController,
-    getInternalRequestMappingObject,
-    hasInternalRequestMappingObject
+    getRequestControllerMappingObject
 } from "../../core/request/types/RequestController";
 import { RequestMethod, parseRequestMethod} from "../../core/request/types/RequestMethod";
 import { filter, forEach, has, isNull, keys, map, some, trim, reduce, concat, find} from "../../core/modules/lodash";
@@ -50,7 +49,7 @@ export interface RequestContext {
     readonly method        ?: RequestMethod;
     readonly pathName      ?: string;
     readonly queryParams   ?: URLSearchParams;
-    readonly routes        ?: Array<RequestRouterMappingPropertyObject> | undefined;
+    readonly routes        ?: readonly RequestRouterMappingPropertyObject[] | undefined;
     readonly bodyRequired  ?: boolean;
     readonly pathVariables ?: RouteParamValuesObject;
 
@@ -72,28 +71,23 @@ export class RequestRouter {
         LOG.setLogLevel(level);
     }
 
-    private readonly _controllers : Array<RequestController>;
+    private readonly _controllers : RequestController[];
     private _routes               : BaseRoutes | undefined;
     private _modelAttributeNames  : Map<RequestController, ModelAttributeProperty[]> | undefined;
-    private _requestMappings      : Array<RequestControllerMappingObject> | undefined;
+    private _requestMappings      : readonly RequestControllerMappingObject[] | undefined;
     private _initialized          : boolean;
 
     public constructor () {
-
         this._controllers             = [];
         this._routes                  = undefined;
         this._requestMappings         = undefined;
         this._modelAttributeNames     = undefined;
         this._initialized             = false;
-
     }
 
     public attachController (controller : RequestController) {
-
         this._controllers.push(controller);
-
         this._routes = undefined;
-
     }
 
     private _initializeRequestMappings () {
@@ -149,17 +143,17 @@ export class RequestRouter {
 
                     const controllerUniqueAttributeNames : ModelAttributeProperty[] = reduce(
                         keys(item.controllerProperties),
-                        (arr2: ModelAttributeProperty[], propertyKey : string) => {
+                        (arr2: ModelAttributeProperty[], propertyKey : string) : ModelAttributeProperty[] => {
 
                             LOG.debug('_initializeRequiredModelAttributeNames: propertyKey: ', propertyKey);
 
                             const propertyValue : RequestControllerMethodObject = item.controllerProperties[propertyKey];
 
-                            const propertyAttributeNames : string[] = propertyValue.modelAttributes;
+                            const propertyAttributeNames : readonly string[] = propertyValue.modelAttributes;
 
                             LOG.debug('_initializeRequiredModelAttributeNames: propertyAttributeNames: ', propertyAttributeNames);
 
-                            const params : (RequestParamObject|null)[] = propertyValue.params;
+                            const params : (RequestParamObject|null)[] = [...propertyValue.params];
 
                             forEach(propertyAttributeNames, (attributeName : string) => {
                                 LOG.debug('_initializeRequiredModelAttributeNames: attributeName: ', attributeName);
@@ -527,30 +521,21 @@ export class RequestRouter {
 
     }
 
-    private _getRequestMappings () : Array<RequestControllerMappingObject> {
-
+    private _getRequestMappings () : RequestControllerMappingObject[] {
         if (this._controllers.length === 0) {
             return [];
         }
-
-        return filter(map(this._controllers, (controller : RequestController) => {
-
-            // @ts-ignore
-            if ( hasInternalRequestMappingObject(controller.constructor) ) {
-
-                // @ts-ignore
-                return getInternalRequestMappingObject(controller.constructor, controller);
-
-            }
-
-            return getInternalRequestMappingObject(controller, controller);
-
-        }), (item : RequestControllerMappingObject | undefined) : boolean => !!item) as Array<RequestControllerMappingObject>;
-
+        return filter(
+            map(
+                this._controllers,
+                (controller : RequestController) => getRequestControllerMappingObject(controller)
+            ),
+            (item : RequestControllerMappingObject | undefined) : boolean => !!item
+        ) as RequestControllerMappingObject[];
     }
 
     private static _parseMappingObject (
-        requestMappings : Array<RequestControllerMappingObject>
+        requestMappings : readonly RequestControllerMappingObject[]
     ) : RequestRouterMappingObject {
 
         const routeMappingResult : RequestRouterMappingObject = {};
@@ -588,20 +573,20 @@ export class RequestRouter {
                         forEach(controllerPropertyNames, (propertyKey: string) => {
 
                             const propertyValue  : RequestControllerMethodObject  = controllerProperties[propertyKey];
-                            const propertyParams : Array<RequestParamObject|null> = propertyValue.params;
+                            const propertyParams : readonly (RequestParamObject|null)[] = propertyValue.params;
 
                             forEach(propertyValue.mappings, (propertyMappingItem : RequestMappingObject) => {
 
                                 // Filters away any property routes which do not have common methods
-                                const propertyMethods : RequestMethod[] = propertyMappingItem.methods;
+                                const propertyMethods : readonly RequestMethod[] = propertyMappingItem.methods;
 
                                 if (!RequestRouter._matchMethods(rootMethods, propertyMethods)) {
                                     return;
                                 }
 
-                                const propertyMethodsCommonWithRoot : RequestMethod[] = RequestRouter._parseCommonMethods(rootMethods, propertyMethods);
+                                const propertyMethodsCommonWithRoot : readonly RequestMethod[] = RequestRouter._parseCommonMethods(rootMethods, propertyMethods);
 
-                                const propertyPaths : string[] = propertyMappingItem.paths;
+                                const propertyPaths : readonly string[] = propertyMappingItem.paths;
 
                                 forEach(propertyPaths, (propertyPath : string) => {
 
@@ -635,12 +620,12 @@ export class RequestRouter {
                 forEach(controllerPropertyNames, (propertyKey: string) => {
 
                     const propertyValue  : RequestControllerMethodObject  = controllerProperties[propertyKey];
-                    const propertyParams : Array<RequestParamObject|null> = propertyValue.params;
+                    const propertyParams : readonly (RequestParamObject|null)[] = propertyValue.params;
 
                     forEach(propertyValue.mappings, (propertyMappingItem : RequestMappingObject) => {
 
-                        const propertyMethods : RequestMethod[] = propertyMappingItem.methods;
-                        const propertyPaths   : string[]        = propertyMappingItem.paths;
+                        const propertyMethods : readonly RequestMethod[] = propertyMappingItem.methods;
+                        const propertyPaths   : readonly string[]        = propertyMappingItem.paths;
 
                         forEach(propertyPaths, (propertyPath : string) => {
 
@@ -670,8 +655,8 @@ export class RequestRouter {
     }
 
     private static _matchMethods (
-        rootMethods     : RequestMethod[],
-        propertyMethods : RequestMethod[]
+        rootMethods     : readonly RequestMethod[],
+        propertyMethods : readonly RequestMethod[]
     ) : boolean {
 
         if (rootMethods.length === 0) return true;
@@ -687,9 +672,9 @@ export class RequestRouter {
     }
 
     private static _parseCommonMethods (
-        rootMethods     : RequestMethod[],
-        propertyMethods : RequestMethod[]
-    ) : RequestMethod[] {
+        rootMethods     : readonly RequestMethod[],
+        propertyMethods : readonly RequestMethod[]
+    ) : readonly RequestMethod[] {
         return (
             rootMethods.length !== 0
                 ? filter(
@@ -723,12 +708,11 @@ export class RequestRouter {
     private static _bindRequestActionParams (
         searchParams      : URLSearchParams,
         requestBody       : JsonAny | undefined,
-        params            : (RequestParamObject|null)[],
+        params            : readonly (RequestParamObject|null)[],
         requestHeaders    : Headers,
         pathVariables     : RouteParamValuesObject | undefined,
         modelAttributes   : Map<string, any>
-    ) : Array<any> {
-
+    ) : any[] {
         return map(params, (item : RequestParamObject|null) : any => {
 
             if ( item === null ) {
@@ -854,7 +838,6 @@ export class RequestRouter {
             throw new TypeError(`Unsupported item type: ${item}`);
 
         });
-
     }
 
     private static _castParam (
