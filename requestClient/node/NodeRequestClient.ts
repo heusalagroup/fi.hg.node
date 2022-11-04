@@ -15,19 +15,43 @@ import { REQUEST_CLIENT_NODE_ENABLED} from "../../../core/requestClient/request-
 import { RequestError } from "../../../core/request/types/RequestError";
 import { LogLevel } from "../../../core/types/LogLevel";
 import { ContentType } from "../../../core/request/ContentType";
+import { RequestOptions } from "https";
+import { KeyObject, PxfObject } from "tls";
 
 export const FsPromises = REQUEST_CLIENT_NODE_ENABLED ? require("fs").promises : undefined;
 
 const LOG = LogService.createLogger('NodeRequestClient');
 
-export interface HttpClientOptions {
+/**
+ * For HTTP options, see https://nodejs.org/docs/latest-v14.x/api/http.html#http_http_request_options_callback
+ * For SSL options, see https://nodejs.org/docs/latest-v14.x/api/tls.html#tls_tls_connect_options_callback
+ */
+export interface HttpClientOptions extends RequestOptions {
 
-    hostname   ?: string;
-    port       ?: number;
-    path       ?: string;
-    method     ?: string;
-    headers    ?: IncomingHttpHeaders;
-    socketPath ?: string;
+    readonly hostname   ?: string;
+    readonly port       ?: number;
+    readonly path       ?: string;
+    readonly method     ?: string;
+    readonly headers    ?: IncomingHttpHeaders;
+    readonly socketPath ?: string;
+
+    readonly ca                 ?: string | Buffer | Array<string | Buffer> | undefined;
+    readonly cert               ?: string | Buffer | Array<string | Buffer> | undefined;
+    readonly ciphers            ?: string | undefined;
+    readonly clientCertEngine   ?: string | undefined;
+    readonly crl                ?: string | Buffer | Array<string | Buffer> | undefined;
+    readonly dhparam            ?: string | Buffer | undefined;
+    readonly ecdhCurve          ?: string | undefined;
+    readonly honorCipherOrder   ?: boolean | undefined;
+    readonly key                ?: string | Buffer | Array<Buffer | KeyObject> | undefined;
+    readonly passphrase         ?: string | undefined;
+    readonly pfx                ?: string | Buffer | Array<string | Buffer | PxfObject> | undefined;
+    readonly rejectUnauthorized ?: boolean;
+    readonly secureOptions      ?: number | undefined;
+    readonly secureProtocol     ?: string | undefined;
+    readonly servername         ?: string;
+    readonly sessionIdContext   ?: string | undefined;
+    readonly highWaterMark      ?: number;
 
 }
 
@@ -64,17 +88,19 @@ export class NodeRequestClient implements RequestClientInterface {
         LOG.setLogLevel(level);
     }
 
-    private readonly _http : HttpModule;
-    private readonly _https : HttpModule;
+    private readonly _http           : HttpModule;
+    private readonly _https          : HttpModule;
+    private readonly _defaultOptions : Partial<HttpClientOptions> | undefined;
 
     public constructor (
-        http : HttpModule,
-        https : HttpModule
+        http            : HttpModule,
+        https           : HttpModule,
+        defaultOptions ?: Partial<HttpClientOptions>
     ) {
         this._http = http;
         this._https = https;
+        this._defaultOptions = defaultOptions;
     }
-
 
     public async textRequest (
         method   : RequestMethod,
@@ -97,16 +123,19 @@ export class NodeRequestClient implements RequestClientInterface {
         headers ?: IncomingHttpHeaders,
         data    ?: string
     ) : Promise< string | undefined > {
-        const options : HttpClientOptions = {
+        let options : HttpClientOptions = {
             method: 'GET',
             headers: {
                 'Content-Type': ContentType.TEXT,
             }
         };
         if (headers) {
-            options.headers = {
-                ...options.headers,
-                ...headers
+            options = {
+                ...options,
+                headers: {
+                    ...options.headers,
+                    ...headers
+                }
             };
         }
         return await this._textRequest(RequestMethod.GET, url, options, data).then(NodeRequestClient._successTextResponse);
@@ -117,16 +146,19 @@ export class NodeRequestClient implements RequestClientInterface {
         headers ?: IncomingHttpHeaders,
         data    ?: string
     ) : Promise<string | undefined > {
-        const options : HttpClientOptions = {
+        let options : HttpClientOptions = {
             method: 'PUT',
             headers: {
                 'Content-Type': ContentType.TEXT,
             }
         };
         if (headers) {
-            options.headers = {
-                ...options.headers,
-                ...headers
+            options = {
+                ...options,
+                headers: {
+                    ...options.headers,
+                    ...headers
+                }
             };
         }
         return await this._textRequest(RequestMethod.PUT, url, options, data).then(NodeRequestClient._successTextResponse);
@@ -137,17 +169,20 @@ export class NodeRequestClient implements RequestClientInterface {
         headers ?: IncomingHttpHeaders,
         data    ?: string
     ) : Promise<string| undefined> {
-        const options : HttpClientOptions = {
+        let options : HttpClientOptions = {
             method: 'POST',
             headers: {
                 'Content-Type': ContentType.TEXT,
             }
         };
         if (headers) {
-            options.headers = {
-                ...options.headers,
-                ...headers
-            };
+            options = {
+                ...options,
+                headers : {
+                    ...options.headers,
+                    ...headers
+                }
+            }
         }
         return await this._textRequest(RequestMethod.POST, url, options, data).then(NodeRequestClient._successTextResponse);
     }
@@ -157,17 +192,20 @@ export class NodeRequestClient implements RequestClientInterface {
         headers ?: IncomingHttpHeaders,
         data    ?: string
     ) : Promise<string| undefined> {
-        const options : HttpClientOptions = {
+        let options : HttpClientOptions = {
             method: 'PATCH',
             headers: {
                 'Content-Type': ContentType.TEXT,
             }
         };
         if (headers) {
-            options.headers = {
-                ...options.headers,
-                ...headers
-            };
+            options = {
+                ...options,
+                headers: {
+                    ...options.headers,
+                    ...headers
+                }
+            }
         }
         return await this._textRequest(RequestMethod.PATCH, url, options, data).then(NodeRequestClient._successTextResponse);
     }
@@ -177,17 +215,20 @@ export class NodeRequestClient implements RequestClientInterface {
         headers ?: IncomingHttpHeaders,
         data    ?: string
     ) : Promise<string| undefined> {
-        const options : HttpClientOptions = {
+        let options : HttpClientOptions = {
             method: 'DELETE',
             headers: {
                 'Content-Type': ContentType.TEXT,
             }
         };
         if (headers) {
-            options.headers = {
-                ...options.headers,
-                ...headers
-            };
+            options = {
+                ...options,
+                headers : {
+                    ...options.headers,
+                    ...headers
+                }
+            }
         }
         return await this._textRequest(RequestMethod.DELETE, url, options, data).then(NodeRequestClient._successTextResponse);
     }
@@ -324,6 +365,14 @@ export class NodeRequestClient implements RequestClientInterface {
         options  : HttpClientOptions,
         body    ?: string
     ) : Promise<IncomingMessage> {
+
+        if (this._defaultOptions !== undefined) {
+            options = {
+                ...this._defaultOptions,
+                ...options
+            };
+        }
+
         const bodyString : string | undefined = body ? body + '\n' : undefined;
         const urlParsed = new URL.URL(url);
         let httpModule : HttpModule | undefined;
@@ -387,7 +436,7 @@ export class NodeRequestClient implements RequestClientInterface {
 
                 req = httpModule.request(options, callback);
 
-                req.on('error', err => {
+                req.on('error', (err : any) => {
                     if (resolved) {
                         LOG.warn('Warning! Request had already ended when the response was received.');
                         LOG.debug('Error from event: ', err);
@@ -441,7 +490,7 @@ export class NodeRequestClient implements RequestClientInterface {
         data    ?: JsonAny
     ) : Promise< JsonAny | undefined > {
 
-        const options : HttpClientOptions = {
+        let options : HttpClientOptions = {
             method: 'GET',
             headers: {
                 'Content-Type': ContentType.JSON,
@@ -449,10 +498,13 @@ export class NodeRequestClient implements RequestClientInterface {
         };
 
         if (headers) {
-            options.headers = {
-                ...options.headers,
-                ...headers
-            };
+            options = {
+                ...options,
+                headers : {
+                    ...options.headers,
+                    ...headers
+                }
+            }
         }
 
         return await this._jsonRequest(RequestMethod.GET, url, options, data).then(NodeRequestClient._successJsonResponse);
@@ -465,7 +517,7 @@ export class NodeRequestClient implements RequestClientInterface {
         data    ?: JsonAny
     ) : Promise<JsonAny | undefined > {
 
-        const options : HttpClientOptions = {
+        let options : HttpClientOptions = {
             method: 'PUT',
             headers: {
                 'Content-Type': ContentType.JSON,
@@ -473,10 +525,13 @@ export class NodeRequestClient implements RequestClientInterface {
         };
 
         if (headers) {
-            options.headers = {
-                ...options.headers,
-                ...headers
-            };
+            options = {
+                ...options,
+                headers : {
+                    ...options.headers,
+                    ...headers
+                }
+            }
         }
 
         return await this._jsonRequest(RequestMethod.PUT, url, options, data).then(NodeRequestClient._successJsonResponse);
@@ -489,7 +544,7 @@ export class NodeRequestClient implements RequestClientInterface {
         data    ?: JsonAny
     ) : Promise<JsonAny| undefined> {
 
-        const options : HttpClientOptions = {
+        let options : HttpClientOptions = {
             method: 'POST',
             headers: {
                 'Content-Type': ContentType.JSON,
@@ -497,10 +552,13 @@ export class NodeRequestClient implements RequestClientInterface {
         };
 
         if (headers) {
-            options.headers = {
-                ...options.headers,
-                ...headers
-            };
+            options = {
+                ...options,
+                headers: {
+                    ...options.headers,
+                    ...headers
+                }
+            }
         }
 
         return await this._jsonRequest(RequestMethod.POST, url, options, data).then(NodeRequestClient._successJsonResponse);
@@ -513,7 +571,7 @@ export class NodeRequestClient implements RequestClientInterface {
         data    ?: JsonAny
     ) : Promise<JsonAny| undefined> {
 
-        const options : HttpClientOptions = {
+        let options : HttpClientOptions = {
             method: 'PATCH',
             headers: {
                 'Content-Type': ContentType.JSON,
@@ -521,10 +579,13 @@ export class NodeRequestClient implements RequestClientInterface {
         };
 
         if (headers) {
-            options.headers = {
-                ...options.headers,
-                ...headers
-            };
+            options = {
+                ...options,
+                headers: {
+                    ...options.headers,
+                    ...headers
+                }
+            }
         }
 
         return await this._jsonRequest(RequestMethod.PATCH, url, options, data).then(NodeRequestClient._successJsonResponse);
@@ -537,7 +598,7 @@ export class NodeRequestClient implements RequestClientInterface {
         data    ?: JsonAny
     ) : Promise<JsonAny| undefined> {
 
-        const options : HttpClientOptions = {
+        let options : HttpClientOptions = {
             method: 'DELETE',
             headers: {
                 'Content-Type': ContentType.JSON,
@@ -545,10 +606,13 @@ export class NodeRequestClient implements RequestClientInterface {
         };
 
         if (headers) {
-            options.headers = {
-                ...options.headers,
-                ...headers
-            };
+            options = {
+                ...options,
+                headers: {
+                    ...options.headers,
+                    ...headers
+                }
+            }
         }
 
         return await this._jsonRequest(RequestMethod.DELETE, url, options, data).then(NodeRequestClient._successJsonResponse);
