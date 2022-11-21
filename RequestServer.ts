@@ -160,9 +160,15 @@ export class RequestServer {
             const body = responseEntity.getBody();
             if (isString(body)) {
                 LOG.debug('_handleResponse: Ending as text ', statusCode, body);
+                if (!headers.containsKey('content-type')) {
+                    res.setHeader('content-type', 'text/plain');
+                }
                 res.end(body);
             } else {
                 LOG.debug('_handleResponse: Ending as json ', statusCode, body);
+                if (!headers.containsKey('content-type')) {
+                    res.setHeader('content-type', 'application/json');
+                }
                 res.end(JSON.stringify(body, null, 2));
             }
         } else {
