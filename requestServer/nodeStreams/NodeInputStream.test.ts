@@ -4,14 +4,13 @@
 import exp from "constants";
 
 describe('NodeInputStream', () => {
-    beforeEach(() => {
 
-    })
     it('Buffer transcode', () => {
         const buffer = require('buffer');
         const newBuf = buffer.transcode(Buffer.from('€'), 'utf8', 'ascii');
         expect(newBuf.toString('ASCII')).toEqual('?')
-        expect(newBuf.toJSON('ASCII')).toContain('?')
+        const string = new TextDecoder().decode(newBuf);
+        expect(string).toContain("?")
     })
 
     it('Buffer isBuffer', () => {
@@ -43,6 +42,14 @@ describe('NodeInputStream', () => {
         expect(Buffer.alloc(10)).toHaveLength(10)
         expect(Buffer.alloc(5, 1)[3]).toEqual( 1)
         expect(Buffer.from([1, 2, 3, 9, 44])).toContain( 9)
+    })
+
+    it('Buffer size', () => {
+        Buffer.poolSize = 4096;
+        const size = Buffer.poolSize * 2;
+        expect(size).toEqual(8192); // Default size
+        const newSize = size * 2;
+        expect(newSize).toEqual(16384);
     })
 
 })

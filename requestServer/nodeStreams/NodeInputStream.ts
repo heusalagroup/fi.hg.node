@@ -1,6 +1,6 @@
 import { MultipartFileInterface } from "../../../core/request/MultifileInterface";
 import { LogService } from "../../../core/LogService";
-import fs, { createReadStream } from 'fs'
+import { createReadStream } from 'fs'
 
 
 const LOG = LogService.createLogger('NodeInputStream');
@@ -21,7 +21,7 @@ export class NodeInputStream implements MultipartFileInterface  {
     public constructor (
         path    : string                    = '',
         file    : File                      = new File([""], "hello-world"),
-        buffer  : BufferEncoding                    = 'binary',
+        buffer  : BufferEncoding            = 'binary',
     ) {
         LOG.debug('new: ', path);
 
