@@ -373,7 +373,7 @@ export class NodeRequestClient implements RequestClientInterface {
             };
         }
 
-        const bodyString : string | undefined = body ? body + '\n' : undefined;
+        const bodyString : string | undefined = body ? body : undefined;
         const urlParsed = new URL.URL(url);
         let httpModule : HttpModule | undefined;
         const protocol : string = urlParsed?.protocol ?? '';
@@ -471,7 +471,7 @@ export class NodeRequestClient implements RequestClientInterface {
         options  : HttpClientOptions,
         body    ?: JsonAny
     ) : Promise<JsonHttpResponse> {
-        const bodyString : string | undefined = body ? JSON.stringify(body) + '\n' : undefined;
+        const bodyString : string | undefined = body ? JSON.stringify(body) : undefined;
         const response : IncomingMessage = await this._httpRequest(url, options, bodyString);
         const result : JsonAny | undefined = await NodeHttpUtils.getRequestDataAsJson(response);
         const statusCode = response?.statusCode ?? 0;
