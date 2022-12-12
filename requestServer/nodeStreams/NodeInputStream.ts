@@ -1,6 +1,6 @@
 import {MultipartFileInterface} from "../../../core/request/MultifileInterface";
 import {LogService} from "../../../core/LogService";
-import {createReadStream, createWriteStream, unlink} from 'fs'
+import {createReadStream, copyFile} from 'fs'
 import {Readable} from "stream";
 
 
@@ -20,16 +20,16 @@ export class NodeInputStream extends Readable implements MultipartFileInterface 
      *
      */
     public constructor(
-        path: string                     = '',
-        file: File                       = new File([""], "hello-world"),
-        buffer: BufferEncoding           = 'binary',
+        path: string = '',
+        file: File = new File([""], "hello-world"),
+        buffer: BufferEncoding = 'binary',
     ) {
         super()
         LOG.debug('newPath: ', path);
 
-        this._path                      = path;
-        this._file                      = file;
-        this._buffer                    = buffer;
+        this._path = path;
+        this._file = file;
+        this._buffer = buffer;
     }
 
     public getBytes(): ArrayBuffer[] {
@@ -50,7 +50,7 @@ export class NodeInputStream extends Readable implements MultipartFileInterface 
     };
 
     public getContentType(): string {
-        const file:File = this._file;
+        const file: File = this._file;
 
         const type = file.type;
         if (type) return type;
@@ -95,29 +95,15 @@ export class NodeInputStream extends Readable implements MultipartFileInterface 
         return true;
     }
 
-    public transferTo(newPath:string) {
-        const oldPath = this._path;
-        if (oldPath && newPath) {
-            const readStream = createReadStream(oldPath);
-            const writeStream = createWriteStream(newPath);
+    public transferTo(dest?: string) {
+        const currentPath = this._path;
+        const destinationPath = dest;
 
-            readStream.on('error', (err) => {
-                LOG.error('transferTo Readstream Error: ', err);
-
-            });
-            writeStream.on('error', (err) => {
-                LOG.error('transferTo Writestream Error: ', err);
+        if (destinationPath) {
+            copyFile(currentPath, destinationPath, () => {
+                LOG.debug(`File copied from: ${currentPath} to ${destinationPath}`)
             });
 
-            readStream.on('close', function () {
-                unlink(oldPath, (err) => {
-                    LOG.error('transferTo unlink Error: ', err);
-                    LOG.debug('transferTo oldPath removed');
-                });
-            });
-            readStream.on('data', (chunk) => {
-                writeStream.write(chunk);
-            })
         }
     }
 

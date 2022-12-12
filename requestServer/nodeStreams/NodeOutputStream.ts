@@ -1,31 +1,40 @@
-import {MultipartFileInterface} from "../../../core/request/MultifileInterface";
+import {OutputStreamInterface} from "../../../core/request/MultifileInterface";
 import {LogService} from "../../../core/LogService";
-import {createReadStream, createWriteStream, unlink} from 'fs'
-import {Readable, Writable} from "stream";
+import {Writable} from "stream";
 
 
-const LOG = LogService.createLogger('NodeInputStream');
+const LOG = LogService.createLogger('NodeOutputStream');
 
 
-export class NodeOutputStream extends Writable {
+export class NodeOutputStream extends Writable implements OutputStreamInterface{
 
-    constructor() {
-        super();
+
+    /**
+     *
+     * @param file
+     * @param path
+     *
+     */
+    public constructor(
+
+    ) {
+        super()
+
     }
 
     public close() {
-
+        return
     }
 
     public flush() {
-
+        return
     }
 
     public nullOutputStream() {
-
+        return
     }
 
-    write() {
+    public write() {
 
     }
 
