@@ -13,10 +13,12 @@ export class NodeOutputStream extends Writable implements OutputStreamInterface{
      *
      * @param file
      * @param path
-     *
+     * @param buffer
      */
     public constructor(
-
+        path:           'string',
+        file:           File,
+        buffer:         BufferEncoding
     ) {
         super()
 
@@ -34,7 +36,7 @@ export class NodeOutputStream extends Writable implements OutputStreamInterface{
         return
     }
 
-    public write() {
+    public write(b: (number | BufferEncoding), off?:number, len?:number):(number | void) {
 
     }
 
