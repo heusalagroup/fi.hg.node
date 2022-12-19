@@ -1,5 +1,13 @@
 // Copyright (c) 2022. Heusala Group Oy <info@heusalagroup.fi>. All rights reserved.
 
+import {MultipartFile} from "./MultipartFile";
+import {after} from "lodash";
+import {Duplex, Readable, Writable} from "stream";
+import {Blob} from "buffer";
+import {NodeInputStream} from "./NodeInputStream";
+
+const fs = require('fs');
+
 describe('NodeInputStream', () => {
 
     it('Buffer transcode', () => {
@@ -37,8 +45,8 @@ describe('NodeInputStream', () => {
         const json = JSON.stringify(buf);
         expect(json.toString()).toEqual("{\"type\":\"Buffer\",\"data\":[1,2,3,4,5]}")
         expect(Buffer.alloc(10)).toHaveLength(10)
-        expect(Buffer.alloc(5, 1)[3]).toEqual( 1)
-        expect(Buffer.from([1, 2, 3, 9, 44])).toContain( 9)
+        expect(Buffer.alloc(5, 1)[3]).toEqual(1)
+        expect(Buffer.from([1, 2, 3, 9, 44])).toContain(9)
     })
 
     it('Buffer size', () => {
@@ -47,6 +55,16 @@ describe('NodeInputStream', () => {
         expect(size).toEqual(8192); // Default size
         const newSize = size * 2;
         expect(newSize).toEqual(16384);
+    })
+
+})
+
+
+describe('Testing Node Streams', () => {
+
+    it('Testing for streams', () => {
+
+
     })
 
 })

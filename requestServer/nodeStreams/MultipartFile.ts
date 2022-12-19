@@ -1,57 +1,41 @@
 import {MultipartFileInterface} from "../../../core/request/MultifileInterface";
 import {LogService} from "../../../core/LogService";
-import {copyFile} from 'fs'
-import {Readable} from "stream";
+import {Duplex, Readable, Writable} from "stream";
 
 
 const LOG = LogService.createLogger('NodeInputStream');
 
 
-export class MultipartFile extends Readable implements MultipartFileInterface {
+export class MultipartFile extends Duplex implements MultipartFileInterface {
 
-    protected readonly _path:             string;
-    protected readonly _file:             File;
-    protected readonly _buffer:           BufferEncoding;
-    protected readonly _highWaterMark:    number;
+    protected readonly _readable:            Readable;
+    protected readonly _writable:            Writable;
 
     /**
      *
      * @param file
-     * @param path
-     * @param buffer
-     * @param highWaterMark
      *
      */
     public constructor(
-        path: string = '',
-        file: File = new File([""], "hello-world"),
-        buffer: BufferEncoding = 'binary',
-        highWaterMark = 8192,
+        readableStream: Readable = new Readable(),
+        writableStream: Writable = new Writable()
     ) {
         super()
-        LOG.debug('newPath: ', path);
+        LOG.debug('newReadStreams: ', readableStream);
+        LOG.debug('newWriteStreams: ', writableStream);
 
-        this._path = path;
-        this._file = file;
-        this._buffer = buffer;
-        this._highWaterMark = highWaterMark;
+        this._readable = readableStream;
+        this._writable = writableStream;
     }
 
-    public getBytes(): Uint8Array[] {
-        const reader = new FileReader();
-        const fileByteArray: any = [];
-        reader.readAsArrayBuffer(this._file);
-        reader.onloadend = function (evt) {
-            if (evt?.target?.readyState == FileReader.DONE) {
-                const arrayBuffer = <Uint8Array>evt.target.result;
-                const array = new Uint8Array(arrayBuffer);
-                for (var i = 0; i < array.length; i++) {
-                    fileByteArray.push(array[i]);
-                }
-            }
-        }
-        if (fileByteArray.length > 0) return fileByteArray;
-        return [] as Uint8Array[];
+    read(size?: number) {
+        if(size) super.read(size);
+        super.read();
+    }
+
+    public async getBytes(): Promise<Uint8Array> {
+        const buffer = await this._file.arrayBuffer()
+        return new Uint8Array(buffer);
     };
 
     public getContentType(): string {
@@ -78,13 +62,10 @@ export class MultipartFile extends Readable implements MultipartFileInterface {
     }
 
     public getSize() {
-        const file = this._file;
-        const buffer = new ArrayBuffer(file.size);
+        const fileSize = this._file.size;
 
-        if (buffer.byteLength) {
-            return buffer.byteLength;
-        }
-        return 0
+        if (fileSize) return fileSize;
+        return 0;
     }
 
     public isEmpty() {
@@ -94,15 +75,17 @@ export class MultipartFile extends Readable implements MultipartFileInterface {
         return true;
     }
 
-    public transferTo(dest?: string) {
-        const currentPath = this._path;
-        const destinationPath = dest;
+    public transferTo(dest?: File) {
+        const destinationFile = dest;
 
-        if (destinationPath) {
-            copyFile(currentPath, destinationPath, () => {
-                LOG.debug(`File copied from: ${currentPath} to ${destinationPath}`)
-            });
+        if(destinationFile) {
+            const readStream = new Readable({
+            })
+            const writeStream = new Writable()
 
+            readStream.push(this._file, "binary")
+            readStream.push(null)
+            const result = readStream.pipe(writeStream)
         }
     }
 

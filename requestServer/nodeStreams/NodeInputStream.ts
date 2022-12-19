@@ -1,35 +1,46 @@
-import {InputStreamInterface, MultipartFileInterface} from "../../../core/request/MultifileInterface";
+import {InputStreamInterface} from "../../../core/request/MultifileInterface";
 import {LogService} from "../../../core/LogService";
-import {Readable} from "stream";
 import {MultipartFile} from "./MultipartFile";
-
+import {Blob} from "buffer";
 
 const LOG = LogService.createLogger('NodeInputStream');
 
-
 export class NodeInputStream extends MultipartFile implements InputStreamInterface {
-    public readonly _stream: Readable;
+    readonly _file: any;
+    readonly _options: Object;
+    readonly _buffer: Promise<Uint8Array>;
 
     /**
      *
-     * @param stream
-     *
+     * @param file
+     * @param options
      */
     public constructor(
-        stream = new MultipartFile()
+        file: File,
+        options: Object,
     ) {
-        super()
-        this._stream = stream;
+        super(file, options)
+        this._file = file;
+        this._options = options;
+        this._buffer = this.toArrayBuffer(file);
     }
 
-    available(): number {
-        const size = this._file.size
-        if (size) return size;
-        return 0;
+    private async toArrayBuffer(inputFile: File):Promise<Uint8Array> {
+        const newBuffer = new Blob([inputFile])
+        const buffer = await newBuffer.arrayBuffer().then<ArrayBuffer>(r => {return <Uint8Array>r})
+        const uint8Arr = new Uint8Array(buffer)
+        return uint8Arr
+    }
+
+    available() {
+        const size = this._buffer.then(r => {
+            return r.byteLength
+        })
+       return size;
     }
 
     close(): void {
-        this._stream.destroy()
+        this.destroy()
     }
 
     mark(readLimit?: number): void {
@@ -43,7 +54,7 @@ export class NodeInputStream extends MultipartFile implements InputStreamInterfa
     }
 
     readAllBytes(): Uint8Array {
-        const read = this._stream.read();
+        const read = this;
         const fullFile: any[] = [];
 
         read.on('data', (chunk: any) => {
@@ -54,22 +65,26 @@ export class NodeInputStream extends MultipartFile implements InputStreamInterfa
             LOG.error('readAllBytes failed with: ', err)
         })
 
-        const result = read.on('end', () => {
+        read.on('end', () => {
             LOG.info("Stream has ended")
-            const bit = new Uint8Array(fullFile);
-            return bit
         })
 
-        return result
+        const bit = new Uint8Array(fullFile);
+        return bit
     }
 
-    readNBytes(len: number): ArrayBuffer;
-    readNBytes(b: ArrayBuffer, off: number, len: number): ArrayBuffer
-    readNBytes(len: number | ArrayBuffer, off?: number): ArrayBuffer {
-        if (typeof len === "number" && off) {
-            return this._stream.read(len);
+    readNBytes(len: number, b?: Uint8Array, off?: number): ArrayBuffer {
+        if (len && b && off) {
+            const chunk = this.read()
+            const length = chunk.length;
+            const buffer = new Uint8Array(
+                b.buffer,
+                off,
+                length
+            );
+            return buffer;
         }
-        return this._stream.read(this._highWaterMark)
+        return this.read()
     }
 
     reset(pos: number): void {
@@ -85,7 +100,7 @@ export class NodeInputStream extends MultipartFile implements InputStreamInterfa
     read(b?: Uint8Array, off?: number, len?: number): Uint8Array | number {
         if (b && off && len) {
             if (len === 0) return 0;
-            const chunk = this._stream.read(len)
+            const chunk = this.read()
             const length = b.length + chunk.length;
             const buffer = new Uint8Array(
                 b.buffer,
@@ -95,33 +110,24 @@ export class NodeInputStream extends MultipartFile implements InputStreamInterfa
             return buffer.length;
 
         } else if (b) {
-            const chunk = this._stream.read(len);
+            const chunk = this.read();
             const length = b.length + chunk.length;
             const buffer = new ArrayBuffer(length);
             return new Uint8Array(buffer);
         } else {
-            const nextByte = this._stream.read()
-            return nextByte;
+            this.push(this._file)
+            return 1;
         }
     }
 
     // Typescript keeps complaining about inheritance unless I use any
     transferTo(out: any): number {
         if (out) {
-            const readable = this._stream.read();
-            const result = readable.pipe(out)
-            return result.size;
+            const readable = this.read();
+
         }
         return 0;
     }
 
 
 }
-
-const test = new NodeInputStream()
-test.available()
-test.getOriginalFilename()
-test.getBytes()
-test.read()
-const stream = new TransformStream()
-test.transferTo(stream)
