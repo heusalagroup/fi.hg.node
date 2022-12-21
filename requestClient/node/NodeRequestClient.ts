@@ -6,17 +6,19 @@ import PATH from "path";
 import { Stats } from "fs";
 
 import { RequestMethod , stringifyRequestMethod } from "../../../core/request/types/RequestMethod";
-import { JsonAny } from "../../../core/Json";
+import { JsonAny, parseJson } from "../../../core/Json";
 import { RequestClientInterface } from "../../../core/requestClient/RequestClientInterface";
 import { ClientRequest, IncomingHttpHeaders, IncomingMessage} from "http";
 import { NodeHttpUtils } from "./NodeHttpUtils";
 import { LogService } from "../../../core/LogService";
 import { REQUEST_CLIENT_NODE_ENABLED} from "../../../core/requestClient/request-client-constants";
-import { RequestError } from "../../../core/request/types/RequestError";
+import { isRequestError, RequestError } from "../../../core/request/types/RequestError";
 import { LogLevel } from "../../../core/types/LogLevel";
 import { ContentType } from "../../../core/request/ContentType";
 import { RequestOptions } from "https";
 import { KeyObject, PxfObject } from "tls";
+import { isString } from "../../../core/modules/lodash";
+import { isErrorDTO } from "../../../core/types/ErrorDTO";
 
 export const FsPromises = REQUEST_CLIENT_NODE_ENABLED ? require("fs").promises : undefined;
 
@@ -239,9 +241,10 @@ export class NodeRequestClient implements RequestClientInterface {
 
         if ( statusCode < 200 || statusCode >= 400 ) {
             LOG.error(`Unsuccessful response with status ${statusCode}: `, response);
+            const statusMessage = this._stringifyErrorBodyString(response?.body);
             throw new RequestError(
                 statusCode,
-                `Error ${statusCode} for ${stringifyRequestMethod(response.method)} ${response.url}`,
+                `${statusCode}${statusMessage ? ` "${statusMessage}"` : ''} for ${stringifyRequestMethod(response.method)} ${response.url}`,
                 response.method,
                 response.url,
                 response.body
@@ -252,6 +255,40 @@ export class NodeRequestClient implements RequestClientInterface {
 
         return response.body;
 
+    }
+
+    private static _stringifyErrorBodyJson (body: JsonAny | undefined) : string {
+        try {
+            if (body === undefined) return '';
+            const bodyObject = body;
+            if (bodyObject) {
+                if (isRequestError(bodyObject)) return bodyObject.message;
+                if (isErrorDTO(bodyObject)) return bodyObject.error;
+                const errorString = (bodyObject as unknown as any)?.error;
+                if (isString(errorString)) return errorString;
+            }
+            return JSON.stringify(body, null, 2);
+        } catch (err) {
+            LOG.warn(`Warning! Could not stringify error body: `, err, body);
+            return body ? JSON.stringify(body, null, 2) : '';
+        }
+    }
+
+    private static _stringifyErrorBodyString (body: string | undefined) : string {
+        try {
+            if (body === undefined) return '';
+            const bodyObject = parseJson(body);
+            if (bodyObject) {
+                if (isRequestError(bodyObject)) return bodyObject.message;
+                if (isErrorDTO(bodyObject)) return bodyObject.error;
+                const errorString = (bodyObject as unknown as any)?.error;
+                if (isString(errorString)) return errorString;
+            }
+            return body;
+        } catch (err) {
+            LOG.warn(`Warning! Could not stringify error body: `, err, body);
+            return body ?? '';
+        }
     }
 
     private async _textRequest (
@@ -625,9 +662,10 @@ export class NodeRequestClient implements RequestClientInterface {
 
         if ( statusCode < 200 || statusCode >= 400 ) {
             LOG.error(`Unsuccessful response with status ${statusCode}: `, response);
+            const statusMessage = this._stringifyErrorBodyJson(response?.body);
             throw new RequestError(
                 statusCode,
-                `Error ${statusCode} for ${stringifyRequestMethod(response.method)} ${response.url}`,
+                `${statusCode}${statusMessage ? ` "${statusMessage}"` : ''} for ${stringifyRequestMethod(response.method)} ${response.url}`,
                 response.method,
                 response.url,
                 response.body
