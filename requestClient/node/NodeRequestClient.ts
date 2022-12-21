@@ -241,7 +241,7 @@ export class NodeRequestClient implements RequestClientInterface {
 
         if ( statusCode < 200 || statusCode >= 400 ) {
             LOG.error(`Unsuccessful response with status ${statusCode}: `, response);
-            const statusMessage = this._stringifyErrorBodyString(response?.body);
+            const statusMessage = NodeRequestClient._stringifyErrorBodyString(response?.body);
             throw new RequestError(
                 statusCode,
                 `${statusCode}${statusMessage ? ` "${statusMessage}"` : ''} for ${stringifyRequestMethod(response.method)} ${response.url}`,
@@ -662,7 +662,7 @@ export class NodeRequestClient implements RequestClientInterface {
 
         if ( statusCode < 200 || statusCode >= 400 ) {
             LOG.error(`Unsuccessful response with status ${statusCode}: `, response);
-            const statusMessage = this._stringifyErrorBodyJson(response?.body);
+            const statusMessage = NodeRequestClient._stringifyErrorBodyJson(response?.body);
             throw new RequestError(
                 statusCode,
                 `${statusCode}${statusMessage ? ` "${statusMessage}"` : ''} for ${stringifyRequestMethod(response.method)} ${response.url}`,
