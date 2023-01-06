@@ -14,10 +14,11 @@ import { isRequestController} from "../core/request/types/RequestController";
 import { JsonAny } from "../core/Json";
 import { NodeHttpUtils } from "./requestClient/node/NodeHttpUtils";
 import { ResponseEntity } from "../core/request/ResponseEntity";
-import { isArray, isString} from "../core/modules/lodash";
 import { Headers } from "../core/request/Headers";
 import { LogLevel } from "../core/types/LogLevel";
 import { Observer, ObserverCallback, ObserverDestructor } from "../core/Observer";
+import { isArray } from "../core/types/Array";
+import { isString } from "../core/types/String";
 
 const LOG = LogService.createLogger('RequestServer');
 

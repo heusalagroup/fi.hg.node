@@ -4,7 +4,6 @@
 import URL from "url";
 import PATH from "path";
 import { Stats } from "fs";
-
 import { RequestMethod , stringifyRequestMethod } from "../../../core/request/types/RequestMethod";
 import { JsonAny, parseJson } from "../../../core/Json";
 import { RequestClientInterface } from "../../../core/requestClient/RequestClientInterface";
@@ -17,8 +16,8 @@ import { LogLevel } from "../../../core/types/LogLevel";
 import { ContentType } from "../../../core/request/ContentType";
 import { RequestOptions } from "https";
 import { KeyObject, PxfObject } from "tls";
-import { isString } from "../../../core/modules/lodash";
 import { isErrorDTO } from "../../../core/types/ErrorDTO";
+import { isString } from "../../../core/types/String";
 
 export const FsPromises = REQUEST_CLIENT_NODE_ENABLED ? require("fs").promises : undefined;
 

@@ -5,16 +5,12 @@ import { stringify as queryStringify } from "querystring";
 import { HttpService } from "../../../../core/HttpService";
 import { ContentType } from "../../../../core/request/ContentType";
 import { LogService } from "../../../../core/LogService";
-import {
-    isBoolean,
-    isString,
-    keys,
-    map, parseInteger,
-    reduce,
-    split,
-    startsWith,
-    trim
-} from "../../../../core/modules/lodash";
+import { isBoolean } from "../../../../core/types/Boolean";
+import { map } from "../../../../core/functions/map";
+import { reduce } from "../../../../core/functions/reduce";
+import { split } from "../../../../core/functions/split";
+import { startsWith } from "../../../../core/functions/startsWith";
+import { trim } from "../../../../core/functions/trim";
 import { JokerPrivacyType } from "../../../../core/com/joker/dmapi/types/JokerPrivacyType";
 import { JokerRequestArgumentObject } from "../../../../core/com/joker/dmapi/types/JokerRequestArgumentObject";
 import { JokerStringObject } from "../../../../core/com/joker/dmapi/types/JokerStringObject";
@@ -38,6 +34,9 @@ import { explainJokerComApiDomainPeriod, parseJokerComApiDomainPeriod } from "..
 import { FiHgComJokerDomainManagementAPI } from "../../../../core/com/joker/dmapi/FiHgComJokerDomainManagementAPI";
 import { createJokerComApiProfileDTO, JokerComApiProfileDTO } from "../../../../core/com/joker/dmapi/types/JokerComApiProfileDTO";
 import { explainJokerComApiUserAccess, parseJokerComApiUserAccess } from "../../../../core/com/joker/dmapi/types/JokerComApiUserAccess";
+import { isString } from "../../../../core/types/String";
+import { parseInteger } from "../../../../core/types/Number";
+import { keys } from "../../../../core/functions/keys";
 
 const LOG = LogService.createLogger('FiHgComJokerDomainManagementService');
 

@@ -6,7 +6,15 @@ import {
     getRequestControllerMappingObject
 } from "../../core/request/types/RequestController";
 import { RequestMethod, parseRequestMethod} from "../../core/request/types/RequestMethod";
-import { filter, forEach, has, isNull, keys, map, some, trim, reduce, concat, find} from "../../core/modules/lodash";
+import { filter } from "../../core/functions/filter";
+import { forEach } from "../../core/functions/forEach";
+import { has } from "../../core/functions/has";
+import { isNull } from "../../core/types/Null";
+import { map } from "../../core/functions/map";
+import { trim } from "../../core/functions/trim";
+import { reduce } from "../../core/functions/reduce";
+import { concat } from "../../core/functions/concat";
+import { find} from "../../core/functions/find";
 import { RequestControllerMappingObject } from "../../core/request/types/RequestControllerMappingObject";
 import { RequestMappingObject } from "../../core/request/types/RequestMappingObject";
 import { isRequestStatus} from "../../core/request/types/RequestStatus";
@@ -37,6 +45,8 @@ import { BaseRoutes, RouteParamValuesObject } from "../../core/requestServer/typ
 import { RequestPathVariableParamObject } from "../../core/request/types/RequestPathVariableParamObject";
 import { RequestModelAttributeParamObject , isRequestModelAttributeParamObject } from "../../core/request/types/RequestModelAttributeParamObject";
 import { LogLevel } from "../../core/types/LogLevel";
+import { keys } from "../../core/functions/keys";
+import { some } from "../../core/functions/some";
 
 const LOG = LogService.createLogger('RequestRouter');
 

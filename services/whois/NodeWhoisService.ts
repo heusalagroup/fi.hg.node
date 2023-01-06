@@ -29,12 +29,14 @@
 
 import { connect, Socket, NetConnectOpts } from "net";
 import { toASCII } from 'punycode';
-import { isString, parseInteger, startsWith } from "../../../core/modules/lodash";
+import { startsWith } from "../../../core/functions/startsWith";
 import { LogService } from "../../../core/LogService";
 import { WhoisService } from "../../../core/whois/WhoisService";
 import { createWhoisLookupResult, WhoisLookupResult } from "../../../core/whois/types/WhoisLookupResult";
 import { WhoisServerOptions } from "../../../core/whois/types/WhoisServerOptions";
 import { WhoisLookupOptions } from "../../../core/whois/types/WhoisLookupOptions";
+import { isString } from "../../../core/types/String";
+import { parseInteger } from "../../../core/types/Number";
 
 const LOG = LogService.createLogger('NodeWhoisService');
 
