@@ -36,7 +36,7 @@ export abstract class NodeBackendConsoleService implements BackendConsoleService
         let command : string = '';
         while ( !this._exitCommands.includes(command) ) {
             const line = await this._rl.question(this._prompt);
-            const args = split(line, / +/).map(trim);
+            const args = split(trim(line), / +/).map(trim);
             command = args.shift();
             try {
                 await this.execute(command, args);
