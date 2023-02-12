@@ -28,7 +28,7 @@ function createMockHttpModule (
 
             timeout = setTimeout(() => {
                 timeout = undefined;
-                res.emit('data', new Buffer(body));
+                res.emit('data', Buffer.from(body, 'utf8'));
                 res.emit('end');
             }, 100);
 
