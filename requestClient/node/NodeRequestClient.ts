@@ -18,6 +18,8 @@ import { RequestOptions } from "https";
 import { KeyObject, PxfObject } from "tls";
 import { isErrorDTO } from "../../../core/types/ErrorDTO";
 import { isString } from "../../../core/types/String";
+import { EntityStatusTypes, ResponseEntity } from "../../../core/request/ResponseEntity";
+import { Headers } from "../../../core/request/Headers";
 
 export const FsPromises = REQUEST_CLIENT_NODE_ENABLED ? require("fs").promises : undefined;
 
@@ -110,192 +112,85 @@ export class NodeRequestClient implements RequestClientInterface {
         data    ?: string
     ) : Promise<string|undefined> {
         switch (method) {
-            case RequestMethod.GET:    return await this._getText(url, headers, data);
-            case RequestMethod.POST:   return await this._postText(url, headers, data);
-            case RequestMethod.PATCH:  return await this._patchText(url, headers, data);
-            case RequestMethod.PUT:    return await this._putText(url, headers, data);
-            case RequestMethod.DELETE: return await this._deleteText(url, headers, data);
-            default:                   throw new TypeError(`[Node]RequestClient: Unsupported method: ${method}`);
+            case RequestMethod.GET:    return await this._textRequest(RequestMethod.GET    , url, headers, data).then(NodeRequestClient._successTextResponse);
+            case RequestMethod.POST:   return await this._textRequest(RequestMethod.POST   , url, headers, data).then(NodeRequestClient._successTextResponse);
+            case RequestMethod.PATCH:  return await this._textRequest(RequestMethod.PATCH  , url, headers, data).then(NodeRequestClient._successTextResponse);
+            case RequestMethod.PUT:    return await this._textRequest(RequestMethod.PUT    , url, headers, data).then(NodeRequestClient._successTextResponse);
+            case RequestMethod.DELETE: return await this._textRequest(RequestMethod.DELETE , url, headers, data).then(NodeRequestClient._successTextResponse);
+            default:                   throw new TypeError(`NodeRequestClient: Unsupported method: ${method}`);
         }
     }
 
-    private async _getText (
+    public async jsonRequest (
+        method   : RequestMethod,
+        url      : string,
+        headers ?: IncomingHttpHeaders,
+        data    ?: JsonAny
+    ) : Promise<JsonAny| undefined> {
+        switch (method) {
+            case RequestMethod.GET:    return await this._jsonRequest(RequestMethod.GET    , url, headers, data).then(NodeRequestClient._successJsonResponse);
+            case RequestMethod.POST:   return await this._jsonRequest(RequestMethod.PUT    , url, headers, data).then(NodeRequestClient._successJsonResponse);
+            case RequestMethod.PATCH:  return await this._jsonRequest(RequestMethod.PATCH  , url, headers, data).then(NodeRequestClient._successJsonResponse);
+            case RequestMethod.PUT:    return await this._jsonRequest(RequestMethod.PUT    , url, headers, data).then(NodeRequestClient._successJsonResponse);
+            case RequestMethod.DELETE: return await this._jsonRequest(RequestMethod.DELETE , url, headers, data).then(NodeRequestClient._successJsonResponse);
+            default:                   throw new TypeError(`NodeRequestClient: Unsupported method: ${method}`);
+        }
+    }
+
+    public async textEntityRequest (
+        method   : RequestMethod,
         url      : string,
         headers ?: IncomingHttpHeaders,
         data    ?: string
-    ) : Promise< string | undefined > {
-        let options : HttpClientOptions = {
-            method: 'GET',
-            headers: {
-                'Content-Type': ContentType.TEXT,
-            }
-        };
-        if (headers) {
-            options = {
-                ...options,
-                headers: {
-                    ...options.headers,
-                    ...headers
-                }
-            };
+    ) : Promise<ResponseEntity<string|undefined>> {
+        switch (method) {
+            case RequestMethod.GET:    return await this._textRequest(RequestMethod.GET    , url, headers, data).then(NodeRequestClient._successTextEntityResponse);
+            case RequestMethod.POST:   return await this._textRequest(RequestMethod.POST   , url, headers, data).then(NodeRequestClient._successTextEntityResponse);
+            case RequestMethod.PATCH:  return await this._textRequest(RequestMethod.PATCH  , url, headers, data).then(NodeRequestClient._successTextEntityResponse);
+            case RequestMethod.PUT:    return await this._textRequest(RequestMethod.PUT    , url, headers, data).then(NodeRequestClient._successTextEntityResponse);
+            case RequestMethod.DELETE: return await this._textRequest(RequestMethod.DELETE , url, headers, data).then(NodeRequestClient._successTextEntityResponse);
+            default:                   throw new TypeError(`NodeRequestClient: Unsupported method: ${method}`);
         }
-        return await this._textRequest(RequestMethod.GET, url, options, data).then(NodeRequestClient._successTextResponse);
     }
 
-    private async _putText (
+    public async jsonEntityRequest (
+        method   : RequestMethod,
         url      : string,
         headers ?: IncomingHttpHeaders,
-        data    ?: string
-    ) : Promise<string | undefined > {
-        let options : HttpClientOptions = {
-            method: 'PUT',
-            headers: {
-                'Content-Type': ContentType.TEXT,
-            }
-        };
-        if (headers) {
-            options = {
-                ...options,
-                headers: {
-                    ...options.headers,
-                    ...headers
-                }
-            };
-        }
-        return await this._textRequest(RequestMethod.PUT, url, options, data).then(NodeRequestClient._successTextResponse);
-    }
-
-    private async _postText (
-        url      : string,
-        headers ?: IncomingHttpHeaders,
-        data    ?: string
-    ) : Promise<string| undefined> {
-        let options : HttpClientOptions = {
-            method: 'POST',
-            headers: {
-                'Content-Type': ContentType.TEXT,
-            }
-        };
-        if (headers) {
-            options = {
-                ...options,
-                headers : {
-                    ...options.headers,
-                    ...headers
-                }
-            }
-        }
-        return await this._textRequest(RequestMethod.POST, url, options, data).then(NodeRequestClient._successTextResponse);
-    }
-
-    private async _patchText (
-        url      : string,
-        headers ?: IncomingHttpHeaders,
-        data    ?: string
-    ) : Promise<string| undefined> {
-        let options : HttpClientOptions = {
-            method: 'PATCH',
-            headers: {
-                'Content-Type': ContentType.TEXT,
-            }
-        };
-        if (headers) {
-            options = {
-                ...options,
-                headers: {
-                    ...options.headers,
-                    ...headers
-                }
-            }
-        }
-        return await this._textRequest(RequestMethod.PATCH, url, options, data).then(NodeRequestClient._successTextResponse);
-    }
-
-    private async _deleteText (
-        url      : string,
-        headers ?: IncomingHttpHeaders,
-        data    ?: string
-    ) : Promise<string| undefined> {
-        let options : HttpClientOptions = {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': ContentType.TEXT,
-            }
-        };
-        if (headers) {
-            options = {
-                ...options,
-                headers : {
-                    ...options.headers,
-                    ...headers
-                }
-            }
-        }
-        return await this._textRequest(RequestMethod.DELETE, url, options, data).then(NodeRequestClient._successTextResponse);
-    }
-
-    private static async _successTextResponse (response: TextHttpResponse) : Promise<string|undefined> {
-
-        const statusCode = response?.statusCode;
-
-        if ( statusCode < 200 || statusCode >= 400 ) {
-            LOG.error(`Unsuccessful response with status ${statusCode}: `, response);
-            const statusMessage = NodeRequestClient._stringifyErrorBodyString(response?.body);
-            throw new RequestError(
-                statusCode,
-                `${statusCode}${statusMessage ? ` "${statusMessage}"` : ''} for ${stringifyRequestMethod(response.method)} ${response.url}`,
-                response.method,
-                response.url,
-                response.body
-            );
-        }
-
-        //LOG.debug(`Successful response with status ${statusCode}: `, response);
-
-        return response.body;
-
-    }
-
-    private static _stringifyErrorBodyJson (body: JsonAny | undefined) : string {
-        try {
-            if (body === undefined) return '';
-            const bodyObject = body;
-            if (bodyObject) {
-                if (isRequestError(bodyObject)) return bodyObject.message;
-                if (isErrorDTO(bodyObject)) return bodyObject.error;
-                const errorString = (bodyObject as unknown as any)?.error;
-                if (isString(errorString)) return errorString;
-            }
-            return JSON.stringify(body, null, 2);
-        } catch (err) {
-            LOG.warn(`Warning! Could not stringify error body: `, err, body);
-            return body ? JSON.stringify(body, null, 2) : '';
-        }
-    }
-
-    private static _stringifyErrorBodyString (body: string | undefined) : string {
-        try {
-            if (body === undefined) return '';
-            const bodyObject = parseJson(body);
-            if (bodyObject) {
-                if (isRequestError(bodyObject)) return bodyObject.message;
-                if (isErrorDTO(bodyObject)) return bodyObject.error;
-                const errorString = (bodyObject as unknown as any)?.error;
-                if (isString(errorString)) return errorString;
-            }
-            return body;
-        } catch (err) {
-            LOG.warn(`Warning! Could not stringify error body: `, err, body);
-            return body ?? '';
+        data    ?: JsonAny
+    ) : Promise<ResponseEntity<JsonAny| undefined>> {
+        switch (method) {
+            case RequestMethod.GET:    return await this._jsonRequest(RequestMethod.GET    , url, headers, data).then(NodeRequestClient._successJsonEntityResponse);
+            case RequestMethod.POST:   return await this._jsonRequest(RequestMethod.PUT    , url, headers, data).then(NodeRequestClient._successJsonEntityResponse);
+            case RequestMethod.PATCH:  return await this._jsonRequest(RequestMethod.PATCH  , url, headers, data).then(NodeRequestClient._successJsonEntityResponse);
+            case RequestMethod.PUT:    return await this._jsonRequest(RequestMethod.PUT    , url, headers, data).then(NodeRequestClient._successJsonEntityResponse);
+            case RequestMethod.DELETE: return await this._jsonRequest(RequestMethod.DELETE , url, headers, data).then(NodeRequestClient._successJsonEntityResponse);
+            default:                   throw new TypeError(`NodeRequestClient: Unsupported method: ${method}`);
         }
     }
 
     private async _textRequest (
         method   : RequestMethod,
         url      : string,
-        options  : HttpClientOptions,
+        headers ?: IncomingHttpHeaders,
         body    ?: string
     ) : Promise<TextHttpResponse> {
+        let options : HttpClientOptions = {
+            method: NodeRequestClient._getMethod(method),
+            headers: {
+                'Content-Type': ContentType.TEXT,
+            }
+        };
+        LOG.debug(`_textRequest: options = `, options);
+        if (headers) {
+            options = {
+                ...options,
+                headers: {
+                    ...options.headers,
+                    ...headers
+                }
+            };
+        }
         const response : IncomingMessage = await this._httpRequest(url, options, body);
         const result : string | undefined = await NodeHttpUtils.getRequestDataAsString(response);
         const statusCode = response?.statusCode ?? 0;
@@ -308,92 +203,53 @@ export class NodeRequestClient implements RequestClientInterface {
         };
     }
 
-
-
-
-    public async jsonRequest (
+    private async _jsonRequest (
         method   : RequestMethod,
         url      : string,
         headers ?: IncomingHttpHeaders,
-        data    ?: JsonAny
-    ) : Promise<JsonAny| undefined> {
+        body    ?: JsonAny
+    ) : Promise<JsonHttpResponse> {
+        let options : HttpClientOptions = {
+            method: NodeRequestClient._getMethod(method),
+            headers: {
+                'Content-Type': ContentType.JSON,
+            }
+        };
+        LOG.debug(`_jsonRequest: options = `, options);
+        if (headers) {
+            options = {
+                ...options,
+                headers : {
+                    ...options.headers,
+                    ...headers
+                }
+            }
+        }
+        const bodyString : string | undefined = body ? JSON.stringify(body) : undefined;
+        const response : IncomingMessage = await this._httpRequest(url, options, bodyString);
+        const result : JsonAny | undefined = await NodeHttpUtils.getRequestDataAsJson(response);
+        const statusCode = response?.statusCode ?? 0;
+        return {
+            method,
+            url,
+            statusCode,
+            headers: response.headers,
+            body: result
+        };
+    }
+
+    private static _getMethod (method: RequestMethod) : string {
         switch (method) {
-            case RequestMethod.GET:    return await this._getJson(url, headers, data);
-            case RequestMethod.POST:   return await this._postJson(url, headers, data);
-            case RequestMethod.PATCH:  return await this._patchJson(url, headers, data);
-            case RequestMethod.PUT:    return await this._putJson(url, headers, data);
-            case RequestMethod.DELETE: return await this._deleteJson(url, headers, data);
-            default:                   throw new TypeError(`[Node]RequestClient: Unsupported method: ${method}`);
+            case RequestMethod.OPTIONS : return 'OPTIONS';
+            case RequestMethod.GET     : return 'GET';
+            case RequestMethod.POST    : return 'POST';
+            case RequestMethod.PUT     : return 'PUT';
+            case RequestMethod.DELETE  : return 'DELETE';
+            case RequestMethod.PATCH   : return 'PATCH';
+            case RequestMethod.TRACE   : return 'TRACE';
+            case RequestMethod.HEAD    : return 'HEAD';
         }
-    }
-
-    /**
-     * If the result is true, this is a socket file.
-     * If the result is false, you cannot find socket from the parent file.
-     * If the result is undefined, you may search parent paths.
-     *
-     * @param path
-     * @private
-     */
-    private async _checkSocketFile (path : string) : Promise<boolean|undefined> {
-
-        try {
-
-            // LOG.debug('_checkSocketFile: path =', path);
-
-            const stat : Stats = await FsPromises.stat(path);
-
-            // LOG.debug('_checkSocketFile: stat =', stat);
-
-            if ( stat.isSocket()    ) return true;
-
-            // if ( stat.isFile()      ) return false;
-            // if ( stat.isDirectory() ) return false;
-
-            return false;
-
-        } catch (err : any) {
-
-            const code = err?.code;
-
-            if (code === 'ENOTDIR') {
-                LOG.debug('_checkSocketFile: ENOTDIR: ', err);
-                return undefined;
-            }
-
-            if (code === 'ENOENT') {
-                LOG.debug('_checkSocketFile: ENOENT: ', err);
-                return undefined;
-            }
-
-            LOG.error(`_checkSocketFile: Error "${code}" passed on: `, err);
-
-            throw err;
-
-        }
-
-    }
-
-    private async _findSocketFile (fullPath : string) : Promise<string | undefined> {
-
-        // LOG.debug('_findSocketFile: fullPath: ', fullPath);
-
-        let socketExists : boolean | undefined = await this._checkSocketFile(fullPath);
-
-        // LOG.debug('_findSocketFile: socketExists: ', socketExists);
-
-        if (socketExists === true) return fullPath;
-        if (socketExists === false) return undefined;
-
-        const parentPath = PATH.dirname(fullPath);
-        // LOG.debug('_findSocketFile: parentPath: ', parentPath);
-
-        if ( parentPath === "/" || parentPath === fullPath ) {
-            return undefined;
-        }
-
-        return await this._findSocketFile(parentPath);
-
+        throw new TypeError(`Unknown method: ${method}`);
     }
 
     private async _httpRequest (
@@ -401,14 +257,12 @@ export class NodeRequestClient implements RequestClientInterface {
         options  : HttpClientOptions,
         body    ?: string
     ) : Promise<IncomingMessage> {
-
         if (this._defaultOptions !== undefined) {
             options = {
                 ...this._defaultOptions,
                 ...options
             };
         }
-
         const bodyString : string | undefined = body ? body : undefined;
         const urlParsed = new URL.URL(url);
         let httpModule : HttpModule | undefined;
@@ -501,160 +355,6 @@ export class NodeRequestClient implements RequestClientInterface {
         });
     }
 
-    private async _jsonRequest (
-        method   : RequestMethod,
-        url      : string,
-        options  : HttpClientOptions,
-        body    ?: JsonAny
-    ) : Promise<JsonHttpResponse> {
-        const bodyString : string | undefined = body ? JSON.stringify(body) : undefined;
-        const response : IncomingMessage = await this._httpRequest(url, options, bodyString);
-        const result : JsonAny | undefined = await NodeHttpUtils.getRequestDataAsJson(response);
-        const statusCode = response?.statusCode ?? 0;
-        return {
-            method: method,
-            url,
-            statusCode,
-            headers: response.headers,
-            body: result
-        };
-    }
-
-    private async _getJson (
-        url      : string,
-        headers ?: IncomingHttpHeaders,
-        data    ?: JsonAny
-    ) : Promise< JsonAny | undefined > {
-
-        let options : HttpClientOptions = {
-            method: 'GET',
-            headers: {
-                'Content-Type': ContentType.JSON,
-            }
-        };
-
-        if (headers) {
-            options = {
-                ...options,
-                headers : {
-                    ...options.headers,
-                    ...headers
-                }
-            }
-        }
-
-        return await this._jsonRequest(RequestMethod.GET, url, options, data).then(NodeRequestClient._successJsonResponse);
-
-    }
-
-    private async _putJson (
-        url      : string,
-        headers ?: IncomingHttpHeaders,
-        data    ?: JsonAny
-    ) : Promise<JsonAny | undefined > {
-
-        let options : HttpClientOptions = {
-            method: 'PUT',
-            headers: {
-                'Content-Type': ContentType.JSON,
-            }
-        };
-
-        if (headers) {
-            options = {
-                ...options,
-                headers : {
-                    ...options.headers,
-                    ...headers
-                }
-            }
-        }
-
-        return await this._jsonRequest(RequestMethod.PUT, url, options, data).then(NodeRequestClient._successJsonResponse);
-
-    }
-
-    private async _postJson (
-        url      : string,
-        headers ?: IncomingHttpHeaders,
-        data    ?: JsonAny
-    ) : Promise<JsonAny| undefined> {
-
-        let options : HttpClientOptions = {
-            method: 'POST',
-            headers: {
-                'Content-Type': ContentType.JSON,
-            }
-        };
-
-        if (headers) {
-            options = {
-                ...options,
-                headers: {
-                    ...options.headers,
-                    ...headers
-                }
-            }
-        }
-
-        return await this._jsonRequest(RequestMethod.POST, url, options, data).then(NodeRequestClient._successJsonResponse);
-
-    }
-
-    private async _patchJson (
-        url      : string,
-        headers ?: IncomingHttpHeaders,
-        data    ?: JsonAny
-    ) : Promise<JsonAny| undefined> {
-
-        let options : HttpClientOptions = {
-            method: 'PATCH',
-            headers: {
-                'Content-Type': ContentType.JSON,
-            }
-        };
-
-        if (headers) {
-            options = {
-                ...options,
-                headers: {
-                    ...options.headers,
-                    ...headers
-                }
-            }
-        }
-
-        return await this._jsonRequest(RequestMethod.PATCH, url, options, data).then(NodeRequestClient._successJsonResponse);
-
-    }
-
-    private async _deleteJson (
-        url      : string,
-        headers ?: IncomingHttpHeaders,
-        data    ?: JsonAny
-    ) : Promise<JsonAny| undefined> {
-
-        let options : HttpClientOptions = {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': ContentType.JSON,
-            }
-        };
-
-        if (headers) {
-            options = {
-                ...options,
-                headers: {
-                    ...options.headers,
-                    ...headers
-                }
-            }
-        }
-
-        return await this._jsonRequest(RequestMethod.DELETE, url, options, data).then(NodeRequestClient._successJsonResponse);
-
-    }
-
     private static async _successJsonResponse (response: JsonHttpResponse) : Promise<JsonAny | undefined> {
 
         const statusCode = response?.statusCode;
@@ -674,6 +374,179 @@ export class NodeRequestClient implements RequestClientInterface {
         //LOG.debug(`Successful response with status ${statusCode}: `, response);
 
         return response.body;
+
+    }
+
+    private static async _successTextResponse (response: TextHttpResponse) : Promise<string|undefined> {
+
+        const statusCode = response?.statusCode;
+
+        if ( statusCode < 200 || statusCode >= 400 ) {
+            LOG.error(`Unsuccessful response with status ${statusCode}: `, response);
+            const statusMessage = NodeRequestClient._stringifyErrorBodyString(response?.body);
+            throw new RequestError(
+                statusCode,
+                `${statusCode}${statusMessage ? ` "${statusMessage}"` : ''} for ${stringifyRequestMethod(response.method)} ${response.url}`,
+                response.method,
+                response.url,
+                response.body
+            );
+        }
+
+        //LOG.debug(`Successful response with status ${statusCode}: `, response);
+
+        return response.body;
+
+    }
+
+    private static async _successJsonEntityResponse (response: JsonHttpResponse) : Promise<ResponseEntity<JsonAny| undefined>> {
+        const statusCode = response?.statusCode;
+        if ( statusCode < 200 || statusCode >= 400 ) {
+            LOG.error(`Unsuccessful response with status ${statusCode}: `, response);
+            const statusMessage = NodeRequestClient._stringifyErrorBodyJson(response?.body);
+            throw new RequestError(
+                statusCode,
+                `${statusCode}${statusMessage ? ` "${statusMessage}"` : ''} for ${stringifyRequestMethod(response.method)} ${response.url}`,
+                response.method,
+                response.url,
+                response.body
+            );
+        }
+        LOG.debug(`Successful response with status ${statusCode}: `, response);
+        const body    : JsonAny| undefined = response.body;
+        const headers : Headers = new Headers(response.headers);
+        const status  : EntityStatusTypes = statusCode;
+        return new ResponseEntity<JsonAny|undefined>(
+            body,
+            headers,
+            status
+        );
+    }
+
+    private static async _successTextEntityResponse (response: TextHttpResponse) : Promise<ResponseEntity<string|undefined>> {
+        const statusCode = response?.statusCode;
+        if ( statusCode < 200 || statusCode >= 400 ) {
+            LOG.error(`Unsuccessful response with status ${statusCode}: `, response);
+            const statusMessage = NodeRequestClient._stringifyErrorBodyString(response?.body);
+            throw new RequestError(
+                statusCode,
+                `${statusCode}${statusMessage ? ` "${statusMessage}"` : ''} for ${stringifyRequestMethod(response.method)} ${response.url}`,
+                response.method,
+                response.url,
+                response.body
+            );
+        }
+        LOG.debug(`Successful response with status ${statusCode}: `, response);
+        const body    : string| undefined = response.body;
+        const headers : Headers = new Headers(response.headers);
+        const status  : EntityStatusTypes = statusCode;
+        return new ResponseEntity<string|undefined>(
+            body,
+            headers,
+            status
+        );
+    }
+
+    private static _stringifyErrorBodyJson (body: JsonAny | undefined) : string {
+        try {
+            if (body === undefined) return '';
+            const bodyObject = body;
+            if (bodyObject) {
+                if (isRequestError(bodyObject)) return bodyObject.message;
+                if (isErrorDTO(bodyObject)) return bodyObject.error;
+                const errorString = (bodyObject as unknown as any)?.error;
+                if (isString(errorString)) return errorString;
+            }
+            return JSON.stringify(body, null, 2);
+        } catch (err) {
+            LOG.warn(`Warning! Could not stringify error body: `, err, body);
+            return body ? JSON.stringify(body, null, 2) : '';
+        }
+    }
+
+    private static _stringifyErrorBodyString (body: string | undefined) : string {
+        try {
+            if (body === undefined) return '';
+            const bodyObject = parseJson(body);
+            if (bodyObject) {
+                if (isRequestError(bodyObject)) return bodyObject.message;
+                if (isErrorDTO(bodyObject)) return bodyObject.error;
+                const errorString = (bodyObject as unknown as any)?.error;
+                if (isString(errorString)) return errorString;
+            }
+            return body;
+        } catch (err) {
+            LOG.warn(`Warning! Could not stringify error body: `, err, body);
+            return body ?? '';
+        }
+    }
+
+    /**
+     * If the result is true, this is a socket file.
+     * If the result is false, you cannot find socket from the parent file.
+     * If the result is undefined, you may search parent paths.
+     *
+     * @param path
+     * @private
+     */
+    private async _checkSocketFile (path : string) : Promise<boolean|undefined> {
+
+        try {
+
+            // LOG.debug('_checkSocketFile: path =', path);
+
+            const stat : Stats = await FsPromises.stat(path);
+
+            // LOG.debug('_checkSocketFile: stat =', stat);
+
+            if ( stat.isSocket()    ) return true;
+
+            // if ( stat.isFile()      ) return false;
+            // if ( stat.isDirectory() ) return false;
+
+            return false;
+
+        } catch (err : any) {
+
+            const code = err?.code;
+
+            if (code === 'ENOTDIR') {
+                LOG.debug('_checkSocketFile: ENOTDIR: ', err);
+                return undefined;
+            }
+
+            if (code === 'ENOENT') {
+                LOG.debug('_checkSocketFile: ENOENT: ', err);
+                return undefined;
+            }
+
+            LOG.error(`_checkSocketFile: Error "${code}" passed on: `, err);
+
+            throw err;
+
+        }
+
+    }
+
+    private async _findSocketFile (fullPath : string) : Promise<string | undefined> {
+
+        // LOG.debug('_findSocketFile: fullPath: ', fullPath);
+
+        let socketExists : boolean | undefined = await this._checkSocketFile(fullPath);
+
+        // LOG.debug('_findSocketFile: socketExists: ', socketExists);
+
+        if (socketExists === true) return fullPath;
+        if (socketExists === false) return undefined;
+
+        const parentPath = PATH.dirname(fullPath);
+        // LOG.debug('_findSocketFile: parentPath: ', parentPath);
+
+        if ( parentPath === "/" || parentPath === fullPath ) {
+            return undefined;
+        }
+
+        return await this._findSocketFile(parentPath);
 
     }
 
