@@ -6,7 +6,7 @@ import { LogLevel } from "../core/types/LogLevel";
 import { LogService } from "../core/LogService";
 import { RequestClientInterface } from "../core/requestClient/RequestClientInterface";
 
-const LOG = LogService.createLogger('initializeHgNode');
+const LOG = LogService.createLogger('HgNode');
 
 export class HgNode {
 
