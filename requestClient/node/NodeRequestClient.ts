@@ -105,6 +105,44 @@ export class NodeRequestClient implements RequestClientInterface {
         this._defaultOptions = defaultOptions;
     }
 
+    /**
+     * This call can be used to perform Node-native raw HTTP requests.
+     *
+     * Please, notice that this call does not handle HTTP status code detection,
+     * e.g. you have to check that it is correct number and possibly throw an
+     * error.
+     *
+     * It will also return NodeJS native IncomingMessage object so that you can
+     * control how you read your data. See NodeHttpUtils for helper functions
+     * to handle parsing incoming message streams.
+     *
+     * Because this call is Node-specific you will not find it from the
+     * RequestClientInterface interface. It's not implemented on the frontend
+     * side (yet) and possible will not be, at least on in compatible way. Unless
+     * if we later add some compatible way from the Java Spring Boot world. Until
+     * then this can be used for NodeJS solutions.
+     *
+     * @param method
+     * @param url
+     * @param headers
+     * @param data
+     */
+    public async bufferRequest (
+        method   : RequestMethod,
+        url      : string,
+        headers ?: IncomingHttpHeaders,
+        data    ?: string | Buffer
+    ) : Promise<IncomingMessage> {
+        switch (method) {
+            case RequestMethod.GET:    return await this._bufferRequest(RequestMethod.GET    , url, headers, data);
+            case RequestMethod.POST:   return await this._bufferRequest(RequestMethod.POST   , url, headers, data);
+            case RequestMethod.PATCH:  return await this._bufferRequest(RequestMethod.PATCH  , url, headers, data);
+            case RequestMethod.PUT:    return await this._bufferRequest(RequestMethod.PUT    , url, headers, data);
+            case RequestMethod.DELETE: return await this._bufferRequest(RequestMethod.DELETE , url, headers, data);
+            default:                   throw new TypeError(`NodeRequestClient: Unsupported method: ${method}`);
+        }
+    }
+
     public async textRequest (
         method   : RequestMethod,
         url      : string,
@@ -169,19 +207,20 @@ export class NodeRequestClient implements RequestClientInterface {
         }
     }
 
-    private async _textRequest (
-        method   : RequestMethod,
-        url      : string,
-        headers ?: IncomingHttpHeaders,
-        body    ?: string
-    ) : Promise<TextHttpResponse> {
+    private async _bufferRequest (
+        method       : RequestMethod,
+        url          : string,
+        headers     ?: IncomingHttpHeaders,
+        body        ?: string | Buffer,
+        contentType ?: ContentType | string
+    ) : Promise<IncomingMessage> {
         let options : HttpClientOptions = {
             method: NodeRequestClient._getMethod(method),
             headers: {
-                'Content-Type': ContentType.TEXT,
+                ...(contentType ? {'Content-Type': contentType} : {})
             }
         };
-        LOG.debug(`_textRequest: options = `, options);
+        LOG.debug(`_bufferRequest: options = `, options);
         if (headers) {
             options = {
                 ...options,
@@ -191,7 +230,23 @@ export class NodeRequestClient implements RequestClientInterface {
                 }
             };
         }
-        const response : IncomingMessage = await this._httpRequest(url, options, body);
+        return await this._httpRequest(url, options, body);
+    }
+
+    private async _textRequest (
+        method       : RequestMethod,
+        url          : string,
+        headers     ?: IncomingHttpHeaders,
+        body        ?: string | Buffer,
+        contentType ?: ContentType | string
+    ) : Promise<TextHttpResponse> {
+        const response = await this._bufferRequest(
+            method,
+            url,
+            headers,
+            body,
+            contentType ?? ContentType.TEXT
+        );
         const result : string | undefined = await NodeHttpUtils.getRequestDataAsString(response);
         const statusCode = response?.statusCode ?? 0;
         return {
@@ -204,29 +259,19 @@ export class NodeRequestClient implements RequestClientInterface {
     }
 
     private async _jsonRequest (
-        method   : RequestMethod,
-        url      : string,
-        headers ?: IncomingHttpHeaders,
-        body    ?: JsonAny
+        method       : RequestMethod,
+        url          : string,
+        headers     ?: IncomingHttpHeaders,
+        body        ?: JsonAny,
+        contentType ?: ContentType | string
     ) : Promise<JsonHttpResponse> {
-        let options : HttpClientOptions = {
-            method: NodeRequestClient._getMethod(method),
-            headers: {
-                'Content-Type': ContentType.JSON,
-            }
-        };
-        LOG.debug(`_jsonRequest: options = `, options);
-        if (headers) {
-            options = {
-                ...options,
-                headers : {
-                    ...options.headers,
-                    ...headers
-                }
-            }
-        }
-        const bodyString : string | undefined = body ? JSON.stringify(body) : undefined;
-        const response : IncomingMessage = await this._httpRequest(url, options, bodyString);
+        const response = await this._bufferRequest(
+            method,
+            url,
+            headers,
+            body ? JSON.stringify(body) : undefined,
+            contentType ?? ContentType.JSON
+        );
         const result : JsonAny | undefined = await NodeHttpUtils.getRequestDataAsJson(response);
         const statusCode = response?.statusCode ?? 0;
         return {
@@ -255,7 +300,7 @@ export class NodeRequestClient implements RequestClientInterface {
     private async _httpRequest (
         url      : string,
         options  : HttpClientOptions,
-        body    ?: string
+        body    ?: string | Buffer
     ) : Promise<IncomingMessage> {
         if (this._defaultOptions !== undefined) {
             options = {
@@ -263,7 +308,7 @@ export class NodeRequestClient implements RequestClientInterface {
                 ...options
             };
         }
-        const bodyString : string | undefined = body ? body : undefined;
+        const bodyData : string | Buffer | undefined = body ? body : undefined;
         const urlParsed = new URL.URL(url);
         let httpModule : HttpModule | undefined;
         const protocol : string = urlParsed?.protocol ?? '';
@@ -337,8 +382,8 @@ export class NodeRequestClient implements RequestClientInterface {
                     }
                 });
 
-                if (bodyString) {
-                    req.write(bodyString);
+                if (bodyData) {
+                    req.write(bodyData);
                 }
                 req.end();
 
