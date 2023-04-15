@@ -199,7 +199,7 @@ export class NodeRequestClient implements RequestClientInterface {
     ) : Promise<ResponseEntity<JsonAny| undefined>> {
         switch (method) {
             case RequestMethod.GET:    return await this._jsonRequest(RequestMethod.GET    , url, headers, data).then(NodeRequestClient._successJsonEntityResponse);
-            case RequestMethod.POST:   return await this._jsonRequest(RequestMethod.POST    , url, headers, data).then(NodeRequestClient._successJsonEntityResponse);
+            case RequestMethod.POST:   return await this._jsonRequest(RequestMethod.POST   , url, headers, data).then(NodeRequestClient._successJsonEntityResponse);
             case RequestMethod.PATCH:  return await this._jsonRequest(RequestMethod.PATCH  , url, headers, data).then(NodeRequestClient._successJsonEntityResponse);
             case RequestMethod.PUT:    return await this._jsonRequest(RequestMethod.PUT    , url, headers, data).then(NodeRequestClient._successJsonEntityResponse);
             case RequestMethod.DELETE: return await this._jsonRequest(RequestMethod.DELETE , url, headers, data).then(NodeRequestClient._successJsonEntityResponse);
