@@ -446,21 +446,22 @@ export class NodeRequestClient implements RequestClientInterface {
 
     private static async _successJsonEntityResponse (response: JsonHttpResponse) : Promise<ResponseEntity<JsonAny| undefined>> {
         const statusCode = response?.statusCode;
+        const body    : JsonAny| undefined = response?.body;
+        const headers : Headers = new Headers(response?.headers);
+        const status  : EntityStatusTypes = statusCode;
         if ( statusCode < 200 || statusCode >= 400 ) {
             LOG.error(`Unsuccessful response with status ${statusCode}: `, response);
-            const statusMessage = NodeRequestClient._stringifyErrorBodyJson(response?.body);
+            const statusMessage = NodeRequestClient._stringifyErrorBodyJson(body);
             throw new RequestError(
                 statusCode,
-                `${statusCode}${statusMessage ? ` "${statusMessage}"` : ''} for ${stringifyRequestMethod(response.method)} ${response.url}`,
-                response.method,
-                response.url,
-                response.body
+                `${statusCode}${statusMessage ? ` "${statusMessage}"` : ''} for ${stringifyRequestMethod(response?.method)} ${response?.url}`,
+                response?.method,
+                response?.url,
+                body,
+                headers
             );
         }
         LOG.debug(`Successful response with status ${statusCode}: `, response);
-        const body    : JsonAny| undefined = response.body;
-        const headers : Headers = new Headers(response.headers);
-        const status  : EntityStatusTypes = statusCode;
         return new ResponseEntity<JsonAny|undefined>(
             body,
             headers,
