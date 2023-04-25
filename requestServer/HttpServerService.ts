@@ -46,6 +46,13 @@ export class HttpServerService implements ServerService<IncomingMessage, ServerR
         this._handler  = handler;
         this._server   = createServer(this._requestHandler);
 
+        // FIXME: Implement these as configurable options
+        // this._server.maxRequestsPerSocket = 0;
+        // this._server.requestTimeout = 0;
+        // this._server.headersTimeout = 0;
+        // this._server.timeout = 0;
+        // this._server.keepAliveTimeout = 0;
+
     }
 
     public start () {
