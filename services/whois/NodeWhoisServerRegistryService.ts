@@ -33,6 +33,7 @@ import { LogService } from "../../../core/LogService";
 import { WhoisServerOptions } from "../../../core/whois/types/WhoisServerOptions";
 import { WhoisServerList } from "../../../core/whois/types/WhoisServerList";
 import { WhoisServerRegistryService } from "../../../core/whois/WhoisServerRegistryService";
+import { isNull } from "../../../core/types/Null";
 
 const LOG = LogService.createLogger('WhoisServerRegistryService');
 
@@ -52,7 +53,7 @@ export class NodeWhoisServerRegistryService implements WhoisServerRegistryServic
     public resolveServerFromAddress (
         addr: string
     ): string | WhoisServerOptions | undefined {
-        let server: string | WhoisServerOptions | undefined = undefined;
+        let server: string | WhoisServerOptions | null | undefined = undefined;
         if (addr.indexOf('@') >= 0) {
             throw new TypeError('lookup: email addresses not supported');
         } else if (isIP(addr) !== 0) {
@@ -65,6 +66,7 @@ export class NodeWhoisServerRegistryService implements WhoisServerRegistryServic
         } else {
             LOG.debug(`"${addr}": Not found`);
         }
+        if (isNull(server)) return undefined;
         return server;
     }
 
@@ -81,6 +83,7 @@ export class NodeWhoisServerRegistryService implements WhoisServerRegistryServic
             }
             tld = tld.replace(/^.+?(\.|$)/, '');
         }
+        if (isNull(server)) return undefined;
         return server;
     }
 
