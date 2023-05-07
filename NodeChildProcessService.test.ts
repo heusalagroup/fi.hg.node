@@ -1,24 +1,31 @@
 // Copyright (c) 2023. Heusala Group Oy <info@hg.fi>. All rights reserved.
 
 import { NodeChildProcessService } from "./NodeChildProcessService";
-import { ChildProcessService } from "../core/ChildProcessService";
 import { LogLevel } from "../core/types/LogLevel";
 
 describe('NodeChildProcessService', () => {
 
-    let service : ChildProcessService;
+    let service : NodeChildProcessService;
 
     beforeEach( () => {
-        NodeChildProcessService.setLogLevel(LogLevel.NONE);
+        console.debug('BeforeEach');
+        NodeChildProcessService.setLogLevel(LogLevel.DEBUG);
         service = new NodeChildProcessService();
     });
 
-    afterEach( () => {
-        service.destroy();
+    afterEach( async () => {
+        try {
+            console.debug('AfterEach');
+            await service.shutdownChildProcesses();
+            service.destroy();
+            service = undefined as unknown as NodeChildProcessService;
+        } catch (err) {
+            console.error(`AfterEach failed: `, err);
+        }
     });
 
-    describe.skip('#destroy', () => {
-        it.skip('can destroy the service', async () => {
+    describe('#destroy', () => {
+        it('can destroy the service', async () => {
             const promise = service.executeCommand('sleep', ['10']);
             service.destroy();
             await service.waitAllChildProcessesStopped();
@@ -31,8 +38,8 @@ describe('NodeChildProcessService', () => {
         });
     });
 
-    describe.skip('#waitAllChildProcessesStopped', () => {
-        it.skip('can wait until all children are down', async () => {
+    describe('#waitAllChildProcessesStopped', () => {
+        it('can wait until all children are down', async () => {
             const promise = service.executeCommand('sleep', ['10']);
             const shutdownPromise = service.shutdownChildProcesses();
             await service.waitAllChildProcessesStopped();
@@ -56,7 +63,7 @@ describe('NodeChildProcessService', () => {
         });
     });
 
-    describe.skip('#shutdownChildProcesses', () => {
+    describe('#shutdownChildProcesses', () => {
         it('can shutdown child processes', async () => {
             const promise = service.executeCommand('sleep', ['10']);
             await service.shutdownChildProcesses();
@@ -69,15 +76,16 @@ describe('NodeChildProcessService', () => {
     });
 
     describe('#executeCommand', () => {
-
         it(`can execute 'ls' command`, async () => {
+            console.debug('#executeCommand');
             const promise = service.executeCommand('ls');
             const result = await promise;
             expect(result).toBeDefined();
-            expect(result.status).toBe(0);
-            expect(result.output).toBeDefined();
+            expect(result.name).toBe('ls');
+            expect(result.args).toStrictEqual([]);
+            expect(result.output).toContain('README.md');
+            console.debug('#executeCommand success');
         });
-
     });
 
 });
