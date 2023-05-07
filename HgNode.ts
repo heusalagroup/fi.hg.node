@@ -5,6 +5,8 @@ import { NodeRequestClient } from "./requestClient/node/NodeRequestClient";
 import { LogLevel } from "../core/types/LogLevel";
 import { LogService } from "../core/LogService";
 import { RequestClientInterface } from "../core/requestClient/RequestClientInterface";
+import { NodeChildProcessService } from "./NodeChildProcessService";
+import { SystemService } from "../core/SystemService";
 
 const LOG = LogService.createLogger('HgNode');
 
@@ -31,6 +33,9 @@ export class HgNode {
             requestClient = new NodeRequestClient(HTTP, HTTPS);
         }
         RequestClient.setClient(requestClient);
+
+        SystemService.initialize( new NodeChildProcessService() );
+
     }
 
 }
