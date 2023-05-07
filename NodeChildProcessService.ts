@@ -1,15 +1,15 @@
 // Copyright (c) 2023. Heusala Group Oy <info@heusalagroup.fi>. All rights reserved.
 
-import { ChildProcess, spawn, SpawnOptions, SerializationType, StdioOptions } from "child_process";
+import { ChildProcess, SerializationType, spawn, SpawnOptions, StdioOptions } from "child_process";
 
 import { filter } from "../core/functions/filter";
 import { map } from "../core/functions/map";
 import { forEach } from "../core/functions/forEach";
-import { ChildProcessService, CommandOptions, CommandResponse } from "../core/ChildProcessService";
 import { LogService } from "../core/LogService";
 import { LogLevel } from "../core/types/LogLevel";
+import { isNumber, parseInteger } from "../core/types/Number";
+import { ChildProcessService, CommandOptions, CommandResponse } from "../core/ChildProcessService";
 import { ChildProcessError, isChildProcessError } from "../core/types/ChildProcessError";
-import { isNumber } from "../core/types/Number";
 
 const LOG = LogService.createLogger('NodeChildProcessService');
 
@@ -19,6 +19,13 @@ interface StoredChild {
     child ?: ChildProcess;
     stdout : Buffer[];
     stderr : Buffer[];
+    pid: number | undefined;
+    abort: boolean;
+    running: boolean;
+    streamsOpen: boolean;
+    initializing: boolean;
+    exitCode ?: number | null;
+    exitSignal ?: number | string | null;
     killSignal ?: number | string;
     promise ?: Promise<CommandResponse>;
 }
@@ -54,16 +61,24 @@ export class NodeChildProcessService implements ChildProcessService {
         LOG.debug(`constructor`);
     }
 
+    public isDestroyed () : boolean {
+        return this._destroyed;
+    }
+
     /**
      * @see {@link ChildProcessService.destroy}
      * @inheritdoc
      */
     public destroy () : void {
-        this._destroyed = true;
-        LOG.debug(`destroy: `, this._children);
-        this.shutdownChildProcesses().catch((err: any) => {
-            LOG.error(`Error happened when shutting down the service: `, err);
-        });
+        if (!this._destroyed) {
+            this._destroyed = true;
+            LOG.debug(`destroying ${this._children?.length} children: ${map(this._children, item => item?.child?.pid).join(', ')}`);
+            this._shutdownChildProcesses().catch((err: any) => {
+                LOG.error(`Error happened when shutting down the service: `, err);
+            });
+        } else {
+            LOG.warn(`The service was already destroyed.`);
+        }
     }
 
     /**
@@ -71,7 +86,7 @@ export class NodeChildProcessService implements ChildProcessService {
      * @inheritdoc
      */
     public async countChildProcesses () : Promise<number> {
-        LOG.debug(`countChildProcesses: `, this._children);
+        LOG.debug(`countChildProcesses: ${this._children?.length}: ${map(this._children, item => item?.child?.pid).join(', ')}`);
         return this._children.length;
     }
 
@@ -80,29 +95,43 @@ export class NodeChildProcessService implements ChildProcessService {
      * @inheritdoc
      */
     public async waitAllChildProcessesStopped () : Promise<void> {
-        LOG.debug(`start: waitAllChildProcessesStopped: `, this._children);
-        // Collect children's promises
-        const promises : Promise<void>[] = map(
-            this._children,
-            async (child : StoredChild) : Promise<void> => {
-                try {
-                    if (child.promise) {
-                        await child.promise;
-                    }
-                } catch (err) {
-                    if (isChildProcessError(err) && err.signal === (child.killSignal ?? 'SIGTERM')) {
-                        LOG.debug(`Child successfully shutdown with signal ${err.signal}: `, child);
-                    } else {
-                        LOG.debug(`Child failed to shutdown: `, err, child);
+
+        if (this._children?.length) {
+            LOG.debug(`start: waitAllChildProcessesStopped: ${map(this._children, item => item?.child?.pid).join(', ')}`);
+            // Collect children's promises
+            const children = this._children;
+            const promises : Promise<void>[] = map(
+                children,
+                async (item : StoredChild) : Promise<void> => {
+                    try {
+                        if (item.promise) {
+                            await item.promise;
+                        }
+                    } catch (err) {
+                        if (isChildProcessError(err) && err.signal === (item.killSignal ?? 'SIGTERM')) {
+                            const { name, pid, running, abort, initializing, streamsOpen, exitSignal, exitCode } = item;
+                            LOG.debug(`Child #${pid} (name=${name}, running=${running}, initializing=${initializing}, abort=${abort}, streamsOpen=${streamsOpen}, exitCode=${exitCode}, exitSignal=${exitSignal}) successfully shutdown with signal ${err.signal}`);
+                        } else {
+                            const { name, pid, running, abort, initializing, streamsOpen, exitSignal, exitCode } = item;
+                            LOG.debug(`Child #${pid} (name=${name}, running=${running}, initializing=${initializing}, abort=${abort}, streamsOpen=${streamsOpen}, exitCode=${exitCode}, exitSignal=${exitSignal}) failed to shutdown: `, err);
+                        }
                     }
                 }
-            }
-        );
-        // Wait for the children to shut down
-        await Promise.allSettled(promises);
-        LOG.debug(`end: waitAllChildProcessesStopped: `, this._children);
-    }
+            );
+            LOG.debug(`Waiting for ${promises.length} children to shutdown: ${map(this._children, item => item?.child?.pid).join(', ')}`);
+            // Wait for the children to shut down
+            await Promise.allSettled(promises);
+            LOG.debug(`end: waitAllChildProcessesStopped: ${map(this._children, item => item?.child?.pid).join(', ')}`);
 
+            const count = this._children?.length ?? 0;
+            if (count) {
+                LOG.warn(`Warning! ${count} children detected at the end of waitAllChildProcessesStopped(): ${map(this._children, item => item?.child?.pid).join(', ')}`);
+            }
+        } else {
+            LOG.debug(`waitAllChildProcessesStopped: No children detected.`);
+        }
+
+    }
 
     /**
      * @see {@link ChildProcessService.shutdown}
@@ -110,8 +139,13 @@ export class NodeChildProcessService implements ChildProcessService {
      */
     /** @inheritdoc */
     public async shutdownChildProcesses () : Promise<void> {
+        if (this._destroyed) throw new TypeError(`shutdownChildProcesses: Service already destroyed`);
+        await this._shutdownChildProcesses();
+    }
+
+    private async _shutdownChildProcesses () : Promise<void> {
         LOG.debug(`start: shutdownChildProcesses: `, this._children);
-        this._sendShutdownToChildren();
+        this._sendShutdownToChildProcesses();
         await this.waitAllChildProcessesStopped();
         LOG.debug(`end: shutdownChildProcesses: `, this._children);
     }
@@ -126,9 +160,9 @@ export class NodeChildProcessService implements ChildProcessService {
         opts ?: CommandOptions
     ) : Promise<CommandResponse> {
         if (this._destroyed) throw new TypeError(`The service has been destroyed`);
-        LOG.debug(`start: executeCommand: `, name, args, opts, this._children);
+        LOG.debug(`start: executeCommand: `, name, args, opts, `Running: ${map(this._children, item => item?.child?.pid).join(', ')}`);
         const p = await this._execFile(name, args, opts);
-        LOG.debug(`end: executeCommand: `, name, args, opts, this._children);
+        LOG.debug(`end: executeCommand: `, name, args, opts, `Running: ${map(this._children, item => item?.child?.pid).join(', ')}`);
         return p;
     }
 
@@ -144,6 +178,10 @@ export class NodeChildProcessService implements ChildProcessService {
         args ?: readonly string[],
         opts ?: CommandOptions
     ) : Promise<CommandResponse> {
+
+        if (this._destroyed) throw new TypeError(`_execFile: Service already destroyed`);
+
+        LOG.debug(`_execFile: `, name, args, opts, `Running: ${map(this._children, item => item?.child?.pid).join(', ')}`);
         if (!args) args = [];
         if (!opts) opts = {};
 
@@ -163,11 +201,17 @@ export class NodeChildProcessService implements ChildProcessService {
         const storedItem : StoredChild = {
             name,
             args,
+            pid: undefined,
+            abort: false,
+            initializing: true,
+            streamsOpen: false,
+            running: false,
             child: undefined,
             stdout: [],
             stderr: [],
             killSignal
         };
+        this._children.push(storedItem);
 
         const nodeOpts : SpawnOptions = {
             ...(cwd !== undefined ? staticSpawnOptionsTypeGuard({cwd}) : {}),
@@ -182,78 +226,180 @@ export class NodeChildProcessService implements ChildProcessService {
             ...(killSignal !== undefined ? staticSpawnOptionsTypeGuard({killSignal: killSignal as NodeJS.Signals|number}) : {}),
         };
 
-        const childPromise = storedItem.promise = new Promise<CommandResponse>(
+        return storedItem.promise = new Promise<CommandResponse>(
             (resolve, reject) => {
                 try {
-                    const child : ChildProcess = spawn(name, args ?? [], nodeOpts);
-                    storedItem.child = child;
-                    this._children.push(storedItem);
+                    if ( this._destroyed ) {
+                        reject(new TypeError(`Service destroyed`));
+                        storedItem.promise = undefined;
+                        return;
+                    }
 
-                    if (child.stdout) {
+                    if ( storedItem?.child ) {
+                        reject(new TypeError(`Child is already created`));
+                        storedItem.promise = undefined;
+                        return;
+                    }
+
+                    storedItem.running = false;
+                    storedItem.streamsOpen = false;
+                    const child: ChildProcess = spawn(name, args ?? [], nodeOpts);
+                    storedItem.child = child;
+                    storedItem.pid = child?.pid;
+
+                    child.on('spawn', () => {
+                        storedItem.initializing = false;
+                        storedItem.running = true;
+                        storedItem.streamsOpen = true;
+                        if (storedItem.pid === undefined) {
+                            storedItem.pid = child?.pid;
+                        }
+
+                        if (storedItem.abort) {
+                            storedItem.abort = false;
+                            this._stopChild(storedItem);
+                        }
+
+                    });
+
+                    child.on('error', (error: any) => {
+                        if ( storedItem.running ) {
+                            LOG.warn(`Unexpected error: `, error);
+                            if (error) {
+                                reject(error);
+                            } else {
+                                reject(new TypeError(`Event "error" without error information detected`));
+                            }
+                        } else {
+                            LOG.warn(`The child process could not be spawned: `, error);
+                        }
+                    });
+
+                    if ( child.stdout ) {
                         child.stdout.on('data', (chunk: Buffer) => {
-                            LOG.debug('stdout data on ', storedItem)
+                            if ( this._destroyed ) {
+                                LOG.debug(`Event 'data': Service already destroyed; stdout data ignored.`);
+                                return;
+                            }
+
+                            const { child, running, streamsOpen, initializing } = storedItem;
+                            const pid = child?.pid;
+                            LOG.debug(`stdout data on: child #${pid}, running=${running}, streamsOpen=${streamsOpen}, initializing=${initializing}`);
                             storedItem.stdout.push(chunk);
                         });
                     }
 
-                    if (child.stderr) {
+                    if ( child.stderr ) {
                         child.stderr.on('data', (chunk: Buffer) => {
-                            LOG.debug('stderr data on ', storedItem)
+                            if ( this._destroyed ) {
+                                LOG.debug(`Event 'data' on stderr: Service already destroyed; stderr data ignored.`);
+                                return;
+                            }
+                            const { child, running, streamsOpen, initializing } = storedItem;
+                            const pid = child?.pid;
+                            LOG.debug(`stderr data on: child #${pid}, running=${running}, streamsOpen=${streamsOpen}, initializing=${initializing}`);
                             storedItem.stderr.push(chunk);
                         });
                     }
 
+                    child.on('exit', (code, signal) => {
+                        storedItem.running = false;
+                        storedItem.exitCode = code;
+                        storedItem.exitSignal = signal;
+                    });
+
                     child.on('close', () => {
-                        LOG.debug('close on ', storedItem);
+                        storedItem.running = false;
+                        storedItem.streamsOpen = false;
+                        if ( this._destroyed ) {
+                            const { child, running, streamsOpen, initializing } = storedItem;
+                            const pid = child?.pid;
+                            LOG.debug(`close on destroyed service item: child #${pid}, running=${running}, streamsOpen=${streamsOpen}, initializing=${initializing}`);
+                        } else {
+                            const { child, running, streamsOpen, initializing } = storedItem;
+                            const pid = child?.pid;
+                            LOG.debug(`close on item: child #${pid}, running=${running}, streamsOpen=${streamsOpen}, initializing=${initializing}`);
+                        }
                         this._onStoredChildClose(
                             name,
                             args ?? [],
                             storedItem,
-                            child.exitCode ?? undefined,
-                            child.signalCode ?? undefined
-                        ).then(resolve, reject);
+                            parseInteger(storedItem.exitCode) ?? parseInteger(child.exitCode) ?? undefined,
+                            storedItem.exitSignal ?? child.signalCode ?? undefined
+                        ).then((value) => {
+                            resolve(value);
+                            storedItem.promise = undefined;
+                        }, (err: any) => {
+                            reject(err);
+                            storedItem.promise = undefined;
+                        });
                     });
 
                 } catch (err) {
-                    LOG.warn(`Exception handled from command "${name}${args?.length?' ':''}${(args??[]).join(' ')}": `, err);
+                    LOG.warn(`Exception handled from command "${name}${args?.length ? ' ' : ''}${(args ?? []).join(' ')}": `, err);
                     reject(new ChildProcessError(name, args ?? [], -4));
+                    storedItem.promise = undefined;
                 }
             }
         );
-
-        // Remove reference to the promise once it resolves
-        childPromise.finally(
-            () => {
-                storedItem.promise = undefined;
-            }
-        );
-
-        return childPromise;
     }
 
-    private _sendShutdownToChildren () {
-        // Send kill signals to all children
+    public sendShutdownToChildProcesses () : void {
+        if (this._destroyed) throw new TypeError(`sendShutdownToChildProcesses: Service already destroyed`);
+        return this._sendShutdownToChildProcesses();
+    }
+
+    /**
+     * Send kill signals to all children
+     *
+     * @private
+     */
+    private _sendShutdownToChildProcesses () : void {
+        const children = this._children;
+        LOG.debug(`Sending shutdown to ${children.length} children: ${map(this._children, item => item?.child?.pid).join(', ')}`);
         forEach(
-            this._children,
+            children,
             (item: StoredChild) : void => {
                 try {
-                    const {child, killSignal} = item;
-                    if (child) {
-                        let status : boolean;
-                        if (killSignal) {
-                            status = child.kill(killSignal as number|NodeJS.Signals);
+                    const { child, initializing, abort } = item;
+                    LOG.debug(`#${child?.pid}: initializing=${initializing}, abort=${abort}`)
+                    if ( initializing ) {
+                        if (!abort) {
+                            LOG.debug(`The child #${child?.pid} will be aborted later`);
+                            item.abort = true;
                         } else {
-                            status = child.kill();
+                            LOG.debug(`The child #${child?.pid} was already aborting later`);
                         }
-                        if (!status) {
-                            LOG.warn(`Warning! Could not signal child process to stop.`);
-                        }
+                    } else {
+                        this._stopChild(item);
                     }
                 } catch (err) {
                     LOG.warn(`Warning! Could not send shutdown signal to child: `, err);
                 }
             }
         );
+    }
+
+    private _stopChild (
+        item: StoredChild
+    ) {
+        const { child, killSignal, running } = item;
+        LOG.debug(`#${child?.pid}: killSignal=${killSignal}, running=${running}`)
+        if ( child && running ) {
+            LOG.debug(`Sending ${killSignal??'default signal'} to child #${child?.pid}`);
+            let status : boolean;
+            if (killSignal) {
+                status = child.kill(killSignal as number|NodeJS.Signals);
+            } else {
+                status = child.kill();
+            }
+            if (!status) {
+                LOG.warn(`Warning! Could not signal child process ${child?.pid} to stop`);
+            }
+        } else {
+            if (!child) LOG.warn(`Warning! The child was not yet created`);
+            else if (!running) LOG.warn(`Warning! The child #${child?.pid} was not running`);
+        }
     }
 
     private async _onStoredChildClose (
@@ -263,7 +409,9 @@ export class NodeChildProcessService implements ChildProcessService {
         exitCode   ?: number,
         signalCode ?: string | number
     ) : Promise<CommandResponse> {
-        LOG.debug('_onStoredChildClose on ', storedItem);
+        const { child, running, streamsOpen, initializing } = storedItem;
+        const pid = child?.pid;
+        LOG.debug(`_onStoredChildClose on child #${pid}, running=${running}, streamsOpen=${streamsOpen}, initializing=${initializing}`);
         const stderr : string = Buffer.concat(storedItem.stderr).toString('utf8');
         const stdout : string = Buffer.concat(storedItem.stdout).toString('utf8');
         try {
