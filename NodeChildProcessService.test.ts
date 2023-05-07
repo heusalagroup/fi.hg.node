@@ -8,14 +8,12 @@ describe('NodeChildProcessService', () => {
     let service : NodeChildProcessService;
 
     beforeEach( () => {
-        console.debug('BeforeEach');
-        NodeChildProcessService.setLogLevel(LogLevel.DEBUG);
+        NodeChildProcessService.setLogLevel(LogLevel.NONE);
         service = new NodeChildProcessService();
     });
 
     afterEach( async () => {
         try {
-            console.debug('AfterEach');
             if (!service.isDestroyed()) {
                 await service.shutdownChildProcesses();
                 if (!service.isDestroyed()) {
@@ -25,6 +23,7 @@ describe('NodeChildProcessService', () => {
             service = undefined as unknown as NodeChildProcessService;
         } catch (err) {
             console.error(`AfterEach failed: `, err);
+            throw err;
         }
     });
 
@@ -83,13 +82,11 @@ describe('NodeChildProcessService', () => {
     describe('#executeCommand', () => {
         it(`can execute 'ls' command`, async () => {
             expect.assertions(4);
-            console.debug('#executeCommand');
             const result = await service.executeCommand('ls');
             expect(result).toBeDefined();
             expect(result.name).toBe('ls');
             expect(result.args).toStrictEqual([]);
             expect(result.output).toContain('README.md');
-            console.debug('#executeCommand success');
         });
     });
 
