@@ -58,7 +58,6 @@ export class NodeChildProcessService implements ChildProcessService {
     public constructor () {
         this._destroyed = false;
         this._children = [];
-        LOG.debug(`constructor`);
     }
 
     public isDestroyed () : boolean {
