@@ -3,7 +3,7 @@
 
 import { stringify as queryStringify } from "querystring";
 import { HttpService } from "../../../../core/HttpService";
-import { ContentType } from "../../../../core/request/ContentType";
+import { ContentType } from "../../../../core/request/types/ContentType";
 import { LogService } from "../../../../core/LogService";
 import { isBoolean } from "../../../../core/types/Boolean";
 import { map } from "../../../../core/functions/map";

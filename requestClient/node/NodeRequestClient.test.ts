@@ -2,7 +2,7 @@ import { HttpModule, NodeRequestClient } from "./NodeRequestClient";
 import { RequestMethod } from "../../../core/request/types/RequestMethod";
 import { EventEmitter } from "events";
 import { LogLevel } from "../../../core/types/LogLevel";
-import { ResponseEntity } from "../../../core/request/ResponseEntity";
+import { ResponseEntity } from "../../../core/request/types/ResponseEntity";
 
 interface MockHttpModule extends HttpModule {
     mockResponse(statusCode: number, body: string): void;

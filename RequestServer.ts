@@ -3,7 +3,7 @@
 import URL from "url";
 import { HttpServerService } from "./requestServer/HttpServerService";
 import { IncomingHttpHeaders, IncomingMessage, ServerResponse} from "http";
-import { RequestRouter } from "./requestServer/RequestRouter";
+import { RequestRouterImpl } from "../core/requestServer/RequestRouterImpl";
 import { RequestStatus, isRequestStatus, stringifyRequestStatus } from "../core/request/types/RequestStatus";
 import { RequestError, createRequestError, isRequestError } from "../core/request/types/RequestError";
 import { ServerService } from "../core/requestServer/types/ServerService";
@@ -13,8 +13,8 @@ import { LogService } from "../core/LogService";
 import { isRequestController} from "../core/request/types/RequestController";
 import { JsonAny } from "../core/Json";
 import { NodeHttpUtils } from "./requestClient/node/NodeHttpUtils";
-import { ResponseEntity } from "../core/request/ResponseEntity";
-import { Headers } from "../core/request/Headers";
+import { ResponseEntity } from "../core/request/types/ResponseEntity";
+import { Headers } from "../core/request/types/Headers";
 import { LogLevel } from "../core/types/LogLevel";
 import { Observer, ObserverCallback, ObserverDestructor } from "../core/Observer";
 import { isArray } from "../core/types/Array";
@@ -36,7 +36,7 @@ export type RequestServerDestructor = ObserverDestructor;
 export class RequestServer {
 
     private readonly _server: ServerService<IncomingMessage, ServerResponse>;
-    private readonly _router: RequestRouter;
+    private readonly _router: RequestRouterImpl;
     private readonly _handleRequestCallback: RequestHandler<any, any>;
 
     public static setLogLevel (level: LogLevel) {
@@ -59,7 +59,7 @@ export class RequestServer {
     ) {
         this._observer = new Observer<RequestServerEvent>("RequestServer");
         this._server = RequestServer.createServerService(config);
-        this._router = new RequestRouter();
+        this._router = RequestRouterImpl.create();
         this._handleRequestCallback = this._handleRequest.bind(this);
         this._server.setHandler(this._handleRequestCallback);
     }

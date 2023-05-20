@@ -13,13 +13,13 @@ import { LogService } from "../../../core/LogService";
 import { REQUEST_CLIENT_NODE_ENABLED} from "../../../core/requestClient/request-client-constants";
 import { isRequestError, RequestError } from "../../../core/request/types/RequestError";
 import { LogLevel } from "../../../core/types/LogLevel";
-import { ContentType } from "../../../core/request/ContentType";
+import { ContentType } from "../../../core/request/types/ContentType";
 import { RequestOptions } from "https";
 import { KeyObject, PxfObject } from "tls";
 import { isErrorDTO } from "../../../core/types/ErrorDTO";
 import { isString } from "../../../core/types/String";
-import { EntityStatusTypes, ResponseEntity } from "../../../core/request/ResponseEntity";
-import { Headers } from "../../../core/request/Headers";
+import { EntityStatusTypes, ResponseEntity } from "../../../core/request/types/ResponseEntity";
+import { Headers } from "../../../core/request/types/Headers";
 
 export const FsPromises = REQUEST_CLIENT_NODE_ENABLED ? require("fs").promises : undefined;
 
