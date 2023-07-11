@@ -118,7 +118,7 @@ export class RequestServer {
                 this._parseRequestHeaders(req.headers)
             );
             LOG.debug(`"${reqMethod} ${reqUrl}": Processing responseEntity`);
-            this._handleResponse(responseData, res);
+            await this._handleResponse(responseData, res);
         } catch (err) {
             LOG.debug(`"${reqMethod} ${reqUrl}": Error, passing it on: `, err);
             this._handleErrorResponse(err, res);
@@ -138,10 +138,10 @@ export class RequestServer {
         }
     }
 
-    private _handleResponse(
+    private async _handleResponse(
         responseEntity : ResponseEntity<any>,
         res            : ServerResponse
-    ): void {
+    ): Promise<void> {
         const statusCode : RequestStatus | number = responseEntity.getStatusCode();
         res.statusCode    = statusCode;
         res.statusMessage = stringifyRequestStatus(statusCode);
@@ -165,6 +165,14 @@ export class RequestServer {
                     res.setHeader('Content-Type', 'text/plain');
                 }
                 res.end(body);
+            } else if ( typeof Response !== 'undefined' && body instanceof Response ) {
+
+                // @ts-ignore
+                for await (const chunk of body.body) {
+                    res.write(chunk);
+                }
+                res.end();
+
             } else {
                 LOG.debug('_handleResponse: Ending as json ', statusCode, body);
                 if (!headers.containsKey('Content-Type')) {
@@ -178,10 +186,10 @@ export class RequestServer {
         }
     }
 
-    private _handleErrorResponse(
+    private async _handleErrorResponse(
         error: any,
         res: ServerResponse
-    ): void {
+    ): Promise<void> {
         let responseEntity : ResponseEntity<RequestError> | undefined;
         if (isRequestStatus(error)) {
             responseEntity = new ResponseEntity(error);
@@ -201,7 +209,7 @@ export class RequestServer {
             }
 
         }
-        this._handleResponse(responseEntity, res);
+        await this._handleResponse(responseEntity, res);
     }
 
     /**
