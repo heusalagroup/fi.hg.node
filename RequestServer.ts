@@ -121,7 +121,7 @@ export class RequestServer {
             await this._handleResponse(responseData, res);
         } catch (err) {
             LOG.debug(`"${reqMethod} ${reqUrl}": Error, passing it on: `, err);
-            this._handleErrorResponse(err, res);
+            await this._handleErrorResponse(err, res);
         }
     }
 
@@ -138,32 +138,18 @@ export class RequestServer {
         }
     }
 
-    private async _handleResponse(
+    private async _handleResponse (
         responseEntity : ResponseEntity<any>,
         res            : ServerResponse
     ): Promise<void> {
         const statusCode : RequestStatus | number = responseEntity.getStatusCode();
         res.statusCode    = statusCode;
         res.statusMessage = stringifyRequestStatus(statusCode);
-        const headers : Headers = responseEntity.getHeaders();
-        if (!headers.isEmpty()) {
-            headers.keySet().forEach((headerKey : string) => {
-                const headerValue = headers.getValue(headerKey) ?? '';
-                LOG.debug(`_handleResponse: Setting response header as "${headerKey}": "${headerValue}"`);
-                if (isArray(headerValue)) {
-                    res.setHeader(headerKey, [...headerValue] as string[]);
-                } else {
-                    res.setHeader(headerKey, headerValue);
-                }
-            });
-        }
+        this._writeResponseHeaders(responseEntity, res, 'text/plain');
         if (responseEntity.hasBody()) {
             const body = responseEntity.getBody();
             if (isString(body)) {
                 LOG.debug('_handleResponse: Ending as text ', statusCode, body);
-                if (!headers.containsKey('Content-Type')) {
-                    res.setHeader('Content-Type', 'text/plain');
-                }
                 res.end(body);
             } else if ( typeof Response !== 'undefined' && body instanceof Response ) {
 
@@ -175,9 +161,6 @@ export class RequestServer {
 
             } else {
                 LOG.debug('_handleResponse: Ending as json ', statusCode, body);
-                if (!headers.containsKey('Content-Type')) {
-                    res.setHeader('Content-Type', 'application/json');
-                }
                 res.end(JSON.stringify(body, null, 2));
             }
         } else {
@@ -221,7 +204,29 @@ export class RequestServer {
         return new Headers(value);
     }
 
-    static createServerService(
+    private _writeResponseHeaders (
+        responseEntity  : ResponseEntity<any>,
+        res             : ServerResponse,
+        defaultMimeType : string = 'text/plain'
+    ) {
+        const headers : Headers = responseEntity.getHeaders();
+        if (!headers.isEmpty()) {
+            headers.keySet().forEach((headerKey : string) => {
+                const headerValue = headers.getValue(headerKey) ?? '';
+                LOG.debug(`_writeResponseHeaders: Setting response header as "${headerKey}": "${headerValue}"`);
+                if (isArray(headerValue)) {
+                    res.setHeader(headerKey, [...headerValue] as string[]);
+                } else {
+                    res.setHeader(headerKey, headerValue);
+                }
+            });
+        }
+        if (!headers.containsKey('Content-Type')) {
+            res.setHeader('Content-Type', defaultMimeType);
+        }
+    }
+
+    public static createServerService(
         config: string
     ): ServerService<IncomingMessage, ServerResponse> {
         const url = new URL.URL(config);
