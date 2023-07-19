@@ -95,6 +95,13 @@ export class NodeRequestClient implements RequestClientInterface {
     private readonly _https          : HttpModule;
     private readonly _defaultOptions : Partial<HttpClientOptions> | undefined;
 
+    /**
+     *
+     * @param http
+     * @param https
+     * @param defaultOptions
+     * @deprecated Use NodeRequestClient.create() instead, the constructor will be changed protected later.
+     */
     public constructor (
         http            : HttpModule,
         https           : HttpModule,
@@ -103,6 +110,18 @@ export class NodeRequestClient implements RequestClientInterface {
         this._http = http;
         this._https = https;
         this._defaultOptions = defaultOptions;
+    }
+
+    public static create (
+        http            : HttpModule,
+        https           : HttpModule,
+        defaultOptions ?: Partial<HttpClientOptions>
+    ) : NodeRequestClient {
+        return new NodeRequestClient(
+            http,
+            https,
+            defaultOptions
+        );
     }
 
     /**
