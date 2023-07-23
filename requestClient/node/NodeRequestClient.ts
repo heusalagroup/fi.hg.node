@@ -6,7 +6,7 @@ import PATH from "path";
 import { Stats } from "fs";
 import { RequestMethod , stringifyRequestMethod } from "../../../core/request/types/RequestMethod";
 import { JsonAny, parseJson } from "../../../core/Json";
-import { RequestClientInterface } from "../../../core/requestClient/RequestClientInterface";
+import { RequestClientAdapter } from "../../../core/requestClient/RequestClientAdapter";
 import { ClientRequest, IncomingHttpHeaders, IncomingMessage} from "http";
 import { NodeHttpUtils } from "./NodeHttpUtils";
 import { LogService } from "../../../core/LogService";
@@ -85,7 +85,7 @@ export interface TextHttpResponse {
     readonly body       ?: string;
 }
 
-export class NodeRequestClient implements RequestClientInterface {
+export class NodeRequestClient implements RequestClientAdapter {
 
     public static setLogLevel (level: LogLevel) {
         LOG.setLogLevel(level);
@@ -136,7 +136,7 @@ export class NodeRequestClient implements RequestClientInterface {
      * to handle parsing incoming message streams.
      *
      * Because this call is Node-specific you will not find it from the
-     * RequestClientInterface interface. It's not implemented on the frontend
+     * RequestClientAdapter interface. It's not implemented on the frontend
      * side (yet) and possible will not be, at least on in compatible way. Unless
      * if we later add some compatible way from the Java Spring Boot world. Until
      * then this can be used for NodeJS solutions.
