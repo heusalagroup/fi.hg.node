@@ -424,7 +424,8 @@ export class NodeRequestClient implements RequestClientAdapter {
         const statusCode = response?.statusCode;
 
         if ( statusCode < 200 || statusCode >= 400 ) {
-            LOG.error(`Unsuccessful response with status ${statusCode}: `, response);
+            // This should be debug level since we throw it again
+            LOG.debug(`Unsuccessful response with status ${statusCode}: `, response);
             const statusMessage = NodeRequestClient._stringifyErrorBodyJson(response?.body);
             throw new RequestError(
                 statusCode,
