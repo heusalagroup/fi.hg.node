@@ -1,4 +1,4 @@
-// Copyright (c) 2022. Heusala Group Oy <info@heusalagroup.fi>. All rights reserved.
+// Copyright (c) 2022-2023. Heusala Group Oy <info@heusalagroup.fi>. All rights reserved.
 // Copyright (c) 2020-2021. Sendanor <info@sendanor.fi>. All rights reserved.
 
 import URL from "url";
@@ -100,9 +100,10 @@ export class NodeRequestClient implements RequestClientAdapter {
      * @param http
      * @param https
      * @param defaultOptions
-     * @deprecated Use NodeRequestClient.create() instead, the constructor will be changed protected later.
+     * @deprecated Use NodeRequestClient.create() instead, the constructor is
+     *             protected now.
      */
-    public constructor (
+    protected constructor (
         http            : HttpModule,
         https           : HttpModule,
         defaultOptions ?: Partial<HttpClientOptions>
@@ -332,30 +333,23 @@ export class NodeRequestClient implements RequestClientAdapter {
         let httpModule : HttpModule | undefined;
         const protocol : string = urlParsed?.protocol ?? '';
         if ( protocol === 'unix:' || protocol === 'socket:' ) {
-
-            const fullSocketPath = urlParsed?.pathname ? urlParsed?.pathname : '/';
+            const fullSocketPath : string = urlParsed?.pathname ? urlParsed?.pathname : '/';
             if (fullSocketPath === '/') {
                 throw new TypeError(`No socket path found for unix protocol URL: ${url}`);
             }
-
             const realSocketPath : string | undefined = await this._findSocketFile(fullSocketPath);
             if (!realSocketPath) {
                 throw new TypeError(`No socket path found for unix protocol URL: ${url}`);
             }
-
-            const socketSuffix = realSocketPath.length < fullSocketPath.length ? fullSocketPath.substr(realSocketPath.length) : '';
+            const socketSuffix : string = realSocketPath.length < fullSocketPath.length ? fullSocketPath.substring(realSocketPath.length) : '';
             const path : string = `${socketSuffix}${urlParsed.search !== '?' ? urlParsed.search : ''}`;
-
             options = {
                 ...options,
                 socketPath: realSocketPath,
                 path
             };
-
             url = '';
-
             httpModule = this._http;
-
         } else if (protocol === 'https:') {
             httpModule = this._https;
         } else {
@@ -364,11 +358,9 @@ export class NodeRequestClient implements RequestClientAdapter {
         return await new Promise( (resolve, reject) => {
             let resolved = false;
             try {
-
                 if (!httpModule) {
                     throw new Error('HTTP module not defined. This error should not happen.');
                 }
-
                 const callback = (res: IncomingMessage) => {
                     if (resolved) {
                         LOG.warn('Warning! Request had already ended when the response was received.');
@@ -377,7 +369,6 @@ export class NodeRequestClient implements RequestClientAdapter {
                         resolve(res);
                     }
                 };
-
                 let req : ClientRequest | undefined;
                 if ( url ) {
                     options = {
@@ -387,9 +378,7 @@ export class NodeRequestClient implements RequestClientAdapter {
                         path: urlParsed.pathname + urlParsed.search
                     };
                 }
-
                 req = httpModule.request(options, callback);
-
                 req.on('error', (err : any) => {
                     if (resolved) {
                         LOG.warn('Warning! Request had already ended when the response was received.');
@@ -400,13 +389,11 @@ export class NodeRequestClient implements RequestClientAdapter {
                         reject(err);
                     }
                 });
-
                 if (bodyData) {
                     req.write(bodyData);
                 }
                 req.end();
-
-            } catch(err) {
+            } catch (err) {
                 if (resolved) {
                     LOG.warn('Warning! Request had already ended when the response was received.');
                     LOG.debug('Exception: ', err);
@@ -420,89 +407,36 @@ export class NodeRequestClient implements RequestClientAdapter {
     }
 
     private static async _successJsonResponse (response: JsonHttpResponse) : Promise<JsonAny | undefined> {
-
         const statusCode = response?.statusCode;
-
         if ( statusCode < 200 || statusCode >= 400 ) {
-            // This should be debug level since we throw it again
-            LOG.debug(`Unsuccessful response with status ${statusCode}: `, response);
-            const statusMessage = NodeRequestClient._stringifyErrorBodyJson(response?.body);
-            throw new RequestError(
-                statusCode,
-                `${statusCode}${statusMessage ? ` "${statusMessage}"` : ''} for ${stringifyRequestMethod(response.method)} ${response.url}`,
-                response.method,
-                response.url,
-                response.body
-            );
+            throw NodeRequestClient._createUnsuccessfulResponseWithStatus(statusCode, response);
         }
-
-        //LOG.debug(`Successful response with status ${statusCode}: `, response);
-
+        LOG.debug(`Successful response with status ${statusCode}: `, response);
         return response.body;
-
     }
 
     private static async _successTextResponse (response: TextHttpResponse) : Promise<string|undefined> {
-
-        const statusCode = response?.statusCode;
-
-        if ( statusCode < 200 || statusCode >= 400 ) {
-            LOG.error(`Unsuccessful response with status ${statusCode}: `, response);
-            const statusMessage = NodeRequestClient._stringifyErrorBodyString(response?.body);
-            throw new RequestError(
-                statusCode,
-                `${statusCode}${statusMessage ? ` "${statusMessage}"` : ''} for ${stringifyRequestMethod(response.method)} ${response.url}`,
-                response.method,
-                response.url,
-                response.body
-            );
-        }
-
-        //LOG.debug(`Successful response with status ${statusCode}: `, response);
-
+        NodeRequestClient._handleResponseStatusCode(response);
         return response.body;
-
     }
 
     private static async _successJsonEntityResponse (response: JsonHttpResponse) : Promise<ResponseEntity<JsonAny| undefined>> {
-        const statusCode = response?.statusCode;
-        const body    : JsonAny| undefined = response?.body;
-        const headers : Headers = new Headers(response?.headers);
-        const status  : EntityStatusTypes = statusCode;
+        const statusCode : number = response?.statusCode;
         if ( statusCode < 200 || statusCode >= 400 ) {
-            LOG.error(`Unsuccessful response with status ${statusCode}: `, response);
-            const statusMessage = NodeRequestClient._stringifyErrorBodyJson(body);
-            throw new RequestError(
-                statusCode,
-                `${statusCode}${statusMessage ? ` "${statusMessage}"` : ''} for ${stringifyRequestMethod(response?.method)} ${response?.url}`,
-                response?.method,
-                response?.url,
-                body,
-                headers
-            );
+            throw NodeRequestClient._createUnsuccessfulResponseWithStatus(statusCode, response);
         }
         LOG.debug(`Successful response with status ${statusCode}: `, response);
+        const headers : Headers = new Headers(response?.headers);
+        const status  : EntityStatusTypes = statusCode;
         return new ResponseEntity<JsonAny|undefined>(
-            body,
+            response.body,
             headers,
             status
         );
     }
 
     private static async _successTextEntityResponse (response: TextHttpResponse) : Promise<ResponseEntity<string|undefined>> {
-        const statusCode = response?.statusCode;
-        if ( statusCode < 200 || statusCode >= 400 ) {
-            LOG.error(`Unsuccessful response with status ${statusCode}: `, response);
-            const statusMessage = NodeRequestClient._stringifyErrorBodyString(response?.body);
-            throw new RequestError(
-                statusCode,
-                `${statusCode}${statusMessage ? ` "${statusMessage}"` : ''} for ${stringifyRequestMethod(response.method)} ${response.url}`,
-                response.method,
-                response.url,
-                response.body
-            );
-        }
-        LOG.debug(`Successful response with status ${statusCode}: `, response);
+        const statusCode : number = NodeRequestClient._handleResponseStatusCode(response);
         const body    : string| undefined = response.body;
         const headers : Headers = new Headers(response.headers);
         const status  : EntityStatusTypes = statusCode;
@@ -510,6 +444,88 @@ export class NodeRequestClient implements RequestClientAdapter {
             body,
             headers,
             status
+        );
+    }
+
+    /**
+     * If the result is true, this is a socket file.
+     * If the result is false, you cannot find socket from the parent file.
+     * If the result is undefined, you may search parent paths.
+     *
+     * @param path
+     * @private
+     */
+    private async _checkSocketFile (path : string) : Promise<boolean|undefined> {
+        try {
+            LOG.debug('_checkSocketFile: path =', path);
+            const stat : Stats = await FsPromises.stat(path);
+            LOG.debug('_checkSocketFile: stat =', stat);
+            if ( stat.isSocket()    ) return true;
+            // if ( stat.isFile()      ) return false;
+            // if ( stat.isDirectory() ) return false;
+            return false;
+        } catch (err : any) {
+            const code = err?.code;
+            if (code === 'ENOTDIR') {
+                LOG.debug('_checkSocketFile: ENOTDIR: ', err);
+                return undefined;
+            }
+            if (code === 'ENOENT') {
+                LOG.debug('_checkSocketFile: ENOENT: ', err);
+                return undefined;
+            }
+            LOG.debug(`_checkSocketFile: Error "${code}" passed on: `, err);
+            throw err;
+        }
+
+    }
+
+    private async _findSocketFile (fullPath : string) : Promise<string | undefined> {
+        LOG.debug('_findSocketFile: fullPath: ', fullPath);
+        let socketExists : boolean | undefined = await this._checkSocketFile(fullPath);
+        LOG.debug('_findSocketFile: socketExists: ', socketExists);
+        if (socketExists === true) return fullPath;
+        if (socketExists === false) return undefined;
+        const parentPath = PATH.dirname(fullPath);
+        LOG.debug('_findSocketFile: parentPath: ', parentPath);
+        if ( parentPath === "/" || parentPath === fullPath ) {
+            return undefined;
+        }
+        return await this._findSocketFile(parentPath);
+    }
+
+    /**
+     * Process successful HTTP request status codes.
+     *
+     * @param response
+     * @throw RequestError if status code is not between 200 and 399
+     * @private
+     */
+    private static _handleResponseStatusCode (
+        response: TextHttpResponse
+    ) : number {
+        const statusCode : number = response?.statusCode;
+        if ( statusCode < 200 || statusCode >= 400 ) {
+            throw NodeRequestClient._createUnsuccessfulResponseWithStatus(statusCode, response);
+        }
+        LOG.debug(`Successful response with status ${statusCode}: `, response);
+        return statusCode;
+    }
+
+    private static _createUnsuccessfulResponseWithStatus (
+        statusCode : number,
+        response   : JsonHttpResponse
+    ) : RequestError {
+        LOG.debug(`Unsuccessful response with status ${statusCode}: `, response);
+        const headers : Headers = new Headers(response?.headers);
+        const statusMessage : string = NodeRequestClient._stringifyErrorBodyJson(response?.body);
+        return new RequestError(
+            statusCode,
+            `${statusCode}${statusMessage ? ` "${statusMessage}"` : ''} for ${stringifyRequestMethod(response?.method)} ${response?.url}`,
+            response.method,
+            response.url,
+            response.body,
+            headers
         );
     }
 
@@ -545,75 +561,6 @@ export class NodeRequestClient implements RequestClientAdapter {
             LOG.warn(`Warning! Could not stringify error body: `, err, body);
             return body ?? '';
         }
-    }
-
-    /**
-     * If the result is true, this is a socket file.
-     * If the result is false, you cannot find socket from the parent file.
-     * If the result is undefined, you may search parent paths.
-     *
-     * @param path
-     * @private
-     */
-    private async _checkSocketFile (path : string) : Promise<boolean|undefined> {
-
-        try {
-
-            // LOG.debug('_checkSocketFile: path =', path);
-
-            const stat : Stats = await FsPromises.stat(path);
-
-            // LOG.debug('_checkSocketFile: stat =', stat);
-
-            if ( stat.isSocket()    ) return true;
-
-            // if ( stat.isFile()      ) return false;
-            // if ( stat.isDirectory() ) return false;
-
-            return false;
-
-        } catch (err : any) {
-
-            const code = err?.code;
-
-            if (code === 'ENOTDIR') {
-                LOG.debug('_checkSocketFile: ENOTDIR: ', err);
-                return undefined;
-            }
-
-            if (code === 'ENOENT') {
-                LOG.debug('_checkSocketFile: ENOENT: ', err);
-                return undefined;
-            }
-
-            LOG.error(`_checkSocketFile: Error "${code}" passed on: `, err);
-
-            throw err;
-
-        }
-
-    }
-
-    private async _findSocketFile (fullPath : string) : Promise<string | undefined> {
-
-        // LOG.debug('_findSocketFile: fullPath: ', fullPath);
-
-        let socketExists : boolean | undefined = await this._checkSocketFile(fullPath);
-
-        // LOG.debug('_findSocketFile: socketExists: ', socketExists);
-
-        if (socketExists === true) return fullPath;
-        if (socketExists === false) return undefined;
-
-        const parentPath = PATH.dirname(fullPath);
-        // LOG.debug('_findSocketFile: parentPath: ', parentPath);
-
-        if ( parentPath === "/" || parentPath === fullPath ) {
-            return undefined;
-        }
-
-        return await this._findSocketFile(parentPath);
-
     }
 
 }

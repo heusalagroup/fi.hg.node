@@ -30,7 +30,7 @@ export class HgNode {
         if (!requestClient) {
             const HTTP = require('http');
             const HTTPS = require('https');
-            requestClient = new NodeRequestClient(HTTP, HTTPS);
+            requestClient = NodeRequestClient.create(HTTP, HTTPS);
         }
         RequestClientImpl.setClient(requestClient);
         SystemService.initialize( new NodeChildProcessService() );
