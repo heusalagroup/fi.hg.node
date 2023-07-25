@@ -69,7 +69,7 @@ describe('NodeRequestClient', () => {
     beforeEach ( () => {
         NodeRequestClient.setLogLevel(LogLevel.NONE);
         http = createMockHttpModule(200, '');
-        client = new NodeRequestClient(http, http);
+        client = NodeRequestClient.create(http, http);
     });
 
     afterEach( () => {
