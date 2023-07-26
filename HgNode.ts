@@ -7,6 +7,8 @@ import { LogService } from "../core/LogService";
 import { RequestClientAdapter } from "../core/requestClient/RequestClientAdapter";
 import { NodeChildProcessService } from "./NodeChildProcessService";
 import { SystemService } from "../core/SystemService";
+import { AutowireService } from "../core/cmd/main/types/AutowireService";
+import { AutowireServiceImpl } from "../core/cmd/main/types/AutowireServiceImpl";
 
 const LOG = LogService.createLogger('HgNode');
 
@@ -23,10 +25,12 @@ export class HgNode {
      * implementation. It has a dependency to NodeJS's http and https modules.
      *
      * @param requestClient The request client adapter to be used by default
+     * @param autowireService The global autowire service
      */
     public static initialize (
-        requestClient ?: RequestClientAdapter | undefined
-    ) {
+        requestClient ?: RequestClientAdapter | undefined,
+        autowireService ?: AutowireService | undefined,
+    ) : void {
         if (!requestClient) {
             const HTTP = require('http');
             const HTTPS = require('https');
@@ -34,6 +38,7 @@ export class HgNode {
         }
         RequestClientImpl.setClient(requestClient);
         SystemService.initialize( new NodeChildProcessService() );
+        AutowireServiceImpl.setAutowireService( autowireService ?? AutowireServiceImpl.create() );
     }
 
 }
