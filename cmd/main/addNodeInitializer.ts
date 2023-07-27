@@ -4,8 +4,9 @@ import { LogService } from "../../../core/LogService";
 import { HgNode } from "../../HgNode";
 import { createMethodDecorator } from "../../../core/decorators/createMethodDecorator";
 import { MethodDecoratorFunction } from "../../../core/decorators/types/MethodDecoratorFunction";
+import { LogLevel } from "../../../core/types/LogLevel";
 
-const LOG = LogService.createLogger( 'useHgNode' );
+const LOG = LogService.createLogger( 'addNodeInitializer' );
 
 /**
  * Wraps the method body with Hg's Node initialization.
@@ -17,7 +18,7 @@ const LOG = LogService.createLogger( 'useHgNode' );
  *     ```typescript
  *     class MyApp {
  *
- *         @useHgNode()
+ *         @addNodeInitializer()
  *         public static async run (
  *             args: string[] = []
  *         ): Promise<CommandExitStatus> {
@@ -28,7 +29,7 @@ const LOG = LogService.createLogger( 'useHgNode' );
  *
  * }
  */
-export function useHgNode<T = any> () : MethodDecoratorFunction {
+export function addNodeInitializer<T = any> () : MethodDecoratorFunction {
     LOG.debug(`calling createMethodDecorator`);
     return createMethodDecorator( (
         method: Function,
@@ -45,9 +46,11 @@ export function useHgNode<T = any> () : MethodDecoratorFunction {
                 HgNode.initialize();
                 return method.apply( this, args );
             } catch (err) {
-                LOG.warn(`Warning! The useHgNode decorator for "${propertyName.toString()}" method had an error: `, err);
+                LOG.warn(`Warning! The @addNodeInitializer for "${propertyName.toString()}" method had an error: `, err);
                 throw err;
             }
         };
     } );
 }
+
+addNodeInitializer.setLogLevel = (level: LogLevel) => LOG.setLogLevel(level);

@@ -7,8 +7,8 @@ import { LogService } from "../core/LogService";
 import { RequestClientAdapter } from "../core/requestClient/RequestClientAdapter";
 import { NodeChildProcessService } from "./NodeChildProcessService";
 import { SystemService } from "../core/SystemService";
-import { AutowireService } from "../core/cmd/main/types/AutowireService";
-import { AutowireServiceImpl } from "../core/cmd/main/types/AutowireServiceImpl";
+import { AutowireService } from "../core/cmd/main/services/AutowireService";
+import { AutowireServiceImpl } from "../core/cmd/main/services/AutowireServiceImpl";
 
 const LOG = LogService.createLogger('HgNode');
 
