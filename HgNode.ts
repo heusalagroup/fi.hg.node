@@ -9,6 +9,8 @@ import { NodeChildProcessService } from "./NodeChildProcessService";
 import { SystemService } from "../core/SystemService";
 import { AutowireService } from "../core/cmd/main/services/AutowireService";
 import { AutowireServiceImpl } from "../core/cmd/main/services/AutowireServiceImpl";
+import { DefaultValue } from "../core/cmd/types/DefaultValue";
+import { NodeDefaultValueFactoryImpl } from "./cmd/utils/NodeDefaultValueFactoryImpl";
 
 const LOG = LogService.createLogger('HgNode');
 
@@ -37,7 +39,8 @@ export class HgNode {
             requestClient = NodeRequestClient.create(HTTP, HTTPS);
         }
         RequestClientImpl.setClient(requestClient);
-        SystemService.initialize( new NodeChildProcessService() );
+        SystemService.initialize( NodeChildProcessService.create() );
+        DefaultValue.initialize( NodeDefaultValueFactoryImpl.create() );
         AutowireServiceImpl.setAutowireService( autowireService ?? AutowireServiceImpl.create() );
     }
 

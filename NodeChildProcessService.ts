@@ -55,9 +55,13 @@ export class NodeChildProcessService implements ChildProcessService {
     /**
      * Construct the service
      */
-    public constructor () {
+    protected constructor () {
         this._destroyed = false;
         this._children = [];
+    }
+
+    public static create () : ChildProcessService {
+        return new NodeChildProcessService();
     }
 
     public isDestroyed () : boolean {
