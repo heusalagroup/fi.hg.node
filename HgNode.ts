@@ -1,4 +1,4 @@
-// Copyright (c) 2022. Heusala Group Oy <info@heusalagroup.fi>. All rights reserved.
+// Copyright (c) 2022-2023. Heusala Group Oy <info@heusalagroup.fi>. All rights reserved.
 
 import { RequestClientImpl } from "../core/RequestClientImpl";
 import { NodeRequestClient } from "./requestClient/node/NodeRequestClient";
@@ -9,8 +9,6 @@ import { NodeChildProcessService } from "./NodeChildProcessService";
 import { SystemService } from "../core/SystemService";
 import { AutowireService } from "../core/cmd/main/services/AutowireService";
 import { AutowireServiceImpl } from "../core/cmd/main/services/AutowireServiceImpl";
-import { DefaultValue } from "../core/cmd/types/DefaultValue";
-import { NodeDefaultValueFactoryImpl } from "./cmd/utils/NodeDefaultValueFactoryImpl";
 
 const LOG = LogService.createLogger('HgNode');
 
@@ -40,7 +38,7 @@ export class HgNode {
         }
         RequestClientImpl.setClient(requestClient);
         SystemService.initialize( NodeChildProcessService.create() );
-        DefaultValue.initialize( NodeDefaultValueFactoryImpl.create() );
+        // DefaultValue.initialize( NodeDefaultValueFactoryImpl.create() );
         AutowireServiceImpl.setAutowireService( autowireService ?? AutowireServiceImpl.create() );
     }
 

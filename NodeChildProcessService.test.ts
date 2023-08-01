@@ -2,14 +2,15 @@
 
 import { NodeChildProcessService } from "./NodeChildProcessService";
 import { LogLevel } from "../core/types/LogLevel";
+import { ChildProcessService } from "../core/ChildProcessService";
 
 describe('NodeChildProcessService', () => {
 
-    let service : NodeChildProcessService;
+    let service : ChildProcessService;
 
     beforeEach( () => {
         NodeChildProcessService.setLogLevel(LogLevel.NONE);
-        service = new NodeChildProcessService();
+        service = NodeChildProcessService.create();
     });
 
     afterEach( async () => {
