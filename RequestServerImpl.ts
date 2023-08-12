@@ -1,9 +1,10 @@
-// Copyright (c) 2020-2021 Sendanor. All rights reserved.
+// Copyright (c) 2022-2023 Heusala Group <info@hg.fi>. All rights reserved.
+// Copyright (c) 2020-2021 Sendanor <info@sendanor.fi>. All rights reserved.
 
-import URL from "url";
-import { HttpServerService } from "./requestServer/HttpServerService";
+import { RequestServer, RequestServerDestructor, RequestServerEvent } from "../core/RequestServer";
+import { RequestRouter } from "../core/requestServer/RequestRouter";
+import { Disposable } from "../core/types/Disposable";
 import { IncomingHttpHeaders, IncomingMessage, ServerResponse} from "http";
-import { RequestRouterImpl } from "../core/requestServer/RequestRouterImpl";
 import { RequestStatus, isRequestStatus, stringifyRequestStatus } from "../core/request/types/RequestStatus";
 import { RequestError, createRequestError, isRequestError } from "../core/request/types/RequestError";
 import { ServerService } from "../core/requestServer/types/ServerService";
@@ -16,30 +17,27 @@ import { NodeHttpUtils } from "./requestClient/node/NodeHttpUtils";
 import { ResponseEntity } from "../core/request/types/ResponseEntity";
 import { Headers } from "../core/request/types/Headers";
 import { LogLevel } from "../core/types/LogLevel";
-import { Observer, ObserverCallback, ObserverDestructor } from "../core/Observer";
+import { Observer, ObserverCallback } from "../core/Observer";
 import { isArray } from "../core/types/Array";
 import { isString } from "../core/types/String";
 
-const LOG = LogService.createLogger('RequestServer');
+const LOG = LogService.createLogger('RequestServerImpl');
 
-export const DEFAULT_REQUEST_SERVER_CONFIG_STRING = 'http://localhost:3000';
-
-export enum RequestServerEvent {
-    CONTROLLER_ATTACHED = "RequestServer:controllerAttached",
-    STARTED = "RequestServer:started",
-    STOPPED = "RequestServer:stopped"
-}
-
-export type RequestServerDestructor = ObserverDestructor;
-
-
-export class RequestServer {
+/**
+ *
+ * @example
+ *         const server: RequestServer = RequestServerImpl.create(
+ *             ServerServiceImpl.create(BACKEND_URL),
+ *             RequestRouterImpl.create(),
+ *         );
+ */
+export class RequestServerImpl implements RequestServer, Disposable {
 
     private readonly _server: ServerService<IncomingMessage, ServerResponse>;
-    private readonly _router: RequestRouterImpl;
+    private readonly _router: RequestRouter;
     private readonly _handleRequestCallback: RequestHandler<any, any>;
 
-    public static setLogLevel (level: LogLevel) {
+    public static setLogLevel (level: LogLevel) : void {
         LOG.setLogLevel(level);
     }
 
@@ -47,21 +45,32 @@ export class RequestServer {
 
     public static Event = RequestServerEvent;
 
+    protected constructor (
+        server: ServerService<IncomingMessage, ServerResponse>,
+        router: RequestRouter,
+    ) {
+        this._observer = new Observer<RequestServerEvent>("RequestServerImpl");
+        this._server = server;
+        this._router = router;
+        this._handleRequestCallback = this._handleRequest.bind(this);
+        this._server.setHandler(this._handleRequestCallback);
+    }
+
+    public static create (
+        server: ServerService<IncomingMessage, ServerResponse>,
+        router: RequestRouter,
+    ) : RequestServerImpl {
+        return new RequestServerImpl(
+            server,
+            router,
+        );
+    }
+
     public on (
         name: RequestServerEvent,
         callback: ObserverCallback<RequestServerEvent>
     ): RequestServerDestructor {
         return this._observer.listenEvent(name, callback);
-    }
-
-    public constructor(
-        config: string = DEFAULT_REQUEST_SERVER_CONFIG_STRING
-    ) {
-        this._observer = new Observer<RequestServerEvent>("RequestServer");
-        this._server = RequestServer.createServerService(config);
-        this._router = RequestRouterImpl.create();
-        this._handleRequestCallback = this._handleRequest.bind(this);
-        this._server.setHandler(this._handleRequestCallback);
     }
 
     public destroy (): void {
@@ -76,7 +85,7 @@ export class RequestServer {
      */
     public attachController (
         controller : any
-    ) {
+    ) : void {
         if (isRequestController(controller)) {
             this._router.attachController(controller);
         } else {
@@ -87,7 +96,7 @@ export class RequestServer {
         }
     }
 
-    public start () {
+    public start () : void {
         LOG.debug(`Starting server`);
         this._server.start();
         if (this._observer.hasCallbacks(RequestServerEvent.STARTED)) {
@@ -95,7 +104,7 @@ export class RequestServer {
         }
     }
 
-    public stop () {
+    public stop () : void {
         LOG.debug(`Stopping server`);
         this._server.stop();
         if (this._observer.hasCallbacks(RequestServerEvent.STOPPED)) {
@@ -114,7 +123,7 @@ export class RequestServer {
             const responseData : ResponseEntity<any> = await this._router.handleRequest(
                 method,
                 reqUrl,
-                (headers: Headers) => RequestServer._requestBodyParser(req, headers),
+                (headers: Headers) => RequestServerImpl._requestBodyParser(req, headers),
                 this._parseRequestHeaders(req.headers)
             );
             LOG.debug(`"${reqMethod} ${reqUrl}": Processing responseEntity`);
@@ -208,7 +217,7 @@ export class RequestServer {
         responseEntity  : ResponseEntity<any>,
         res             : ServerResponse,
         defaultMimeType : string = 'text/plain'
-    ) {
+    ) : void {
         const headers : Headers = responseEntity.getHeaders();
         if (!headers.isEmpty()) {
             headers.keySet().forEach((headerKey : string) => {
@@ -223,18 +232,6 @@ export class RequestServer {
         }
         if (!headers.containsKey('Content-Type')) {
             res.setHeader('Content-Type', defaultMimeType);
-        }
-    }
-
-    public static createServerService(
-        config: string
-    ): ServerService<IncomingMessage, ServerResponse> {
-        const url = new URL.URL(config);
-        if (url.protocol === 'http:') {
-            const port = url.port ? parseInt(url.port, 10) : 80;
-            return new HttpServerService(port, url.hostname);
-        } else {
-            throw new TypeError(`RequestServer: Protocol "${url.protocol}" not yet supported`);
         }
     }
 
