@@ -5,7 +5,7 @@ import URL from "url";
 import PATH from "path";
 import { Stats } from "fs";
 import { RequestMethod , stringifyRequestMethod } from "../../../core/request/types/RequestMethod";
-import { JsonAny, parseJson } from "../../../core/Json";
+import { JsonAny } from "../../../core/Json";
 import { RequestClientAdapter } from "../../../core/requestClient/RequestClientAdapter";
 import { ClientRequest, IncomingHttpHeaders, IncomingMessage} from "http";
 import { NodeHttpUtils } from "./NodeHttpUtils";
@@ -546,21 +546,21 @@ export class NodeRequestClient implements RequestClientAdapter {
         }
     }
 
-    private static _stringifyErrorBodyString (body: string | undefined) : string {
-        try {
-            if (body === undefined) return '';
-            const bodyObject = parseJson(body);
-            if (bodyObject) {
-                if (isRequestError(bodyObject)) return bodyObject.message;
-                if (isErrorDTO(bodyObject)) return bodyObject.error;
-                const errorString = (bodyObject as unknown as any)?.error;
-                if (isString(errorString)) return errorString;
-            }
-            return body;
-        } catch (err) {
-            LOG.warn(`Warning! Could not stringify error body: `, err, body);
-            return body ?? '';
-        }
-    }
+    // private static _stringifyErrorBodyString (body: string | undefined) : string {
+    //     try {
+    //         if (body === undefined) return '';
+    //         const bodyObject = parseJson(body);
+    //         if (bodyObject) {
+    //             if (isRequestError(bodyObject)) return bodyObject.message;
+    //             if (isErrorDTO(bodyObject)) return bodyObject.error;
+    //             const errorString = (bodyObject as unknown as any)?.error;
+    //             if (isString(errorString)) return errorString;
+    //         }
+    //         return body;
+    //     } catch (err) {
+    //         LOG.warn(`Warning! Could not stringify error body: `, err, body);
+    //         return body ?? '';
+    //     }
+    // }
 
 }

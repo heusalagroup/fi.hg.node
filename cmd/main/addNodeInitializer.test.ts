@@ -22,7 +22,7 @@ describe('addNodeInitializer', () => {
         class MyApp {
             @addNodeInitializer()
             public static async run (args: string[] = []) {
-                return "Hello world";
+                return "Hello world args="+args.join(',');
             }
         }
 
@@ -33,14 +33,17 @@ describe('addNodeInitializer', () => {
         expect(HgNode.initialize).toHaveBeenCalledTimes(1);
 
         // Assert method returned the expected result
-        expect(result).toEqual("Hello world");
+        expect(result).toEqual("Hello world args=");
     });
 
     it('throws the error and logs a warning when an error occurs in the method', async () => {
         const err = new Error('Error in run method');
         class MyApp {
             @addNodeInitializer()
-            public static async run (args: string[] = []) {
+            public static async run (
+                // @ts-ignore
+                args: string[] = []
+            ) {
                 throw err;
             }
         }

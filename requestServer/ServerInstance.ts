@@ -10,7 +10,7 @@ export interface ServerCloseCallback {
 
 export interface ServerInstance {
 
-    listen (port: number, hostname: string, listenCallback : ServerListenCallback) : void;
+    listen (port: number, hostname: string | undefined, listenCallback : ServerListenCallback) : void;
 
     close (closeCallback: ServerCloseCallback) : void;
 

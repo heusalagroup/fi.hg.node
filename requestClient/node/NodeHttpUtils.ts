@@ -30,7 +30,7 @@ export class NodeHttpUtils {
         request  : IncomingMessage,
         encoding : BufferEncodingString = 'utf8'
     ) : Promise<string> {
-        return await NodeStreamUtils.getStreamDataAsString(request);
+        return await NodeStreamUtils.getStreamDataAsString(request, encoding);
     }
 
     /**

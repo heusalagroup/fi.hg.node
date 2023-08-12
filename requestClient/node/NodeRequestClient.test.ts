@@ -19,7 +19,9 @@ function createMockHttpModule (
     let response : any;
     let request : any;
     const http = {
-        request: jest.fn((options, callback) => {
+        request: jest.fn((
+            // @ts-ignore
+            options, callback) => {
 
             const res : any = new EventEmitter();
             response = res;
