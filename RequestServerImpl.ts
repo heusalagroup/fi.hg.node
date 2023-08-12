@@ -56,6 +56,14 @@ export class RequestServerImpl implements RequestServer, Disposable {
         this._server.setHandler(this._handleRequestCallback);
     }
 
+    /**
+     *
+     * @example
+     *         const server: RequestServer = RequestServerImpl.create(
+     *             ServerServiceImpl.create(BACKEND_URL),
+     *             RequestRouterImpl.create(),
+     *         );
+     */
     public static create (
         server: ServerService<IncomingMessage, ServerResponse>,
         router: RequestRouter,
