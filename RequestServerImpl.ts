@@ -1,6 +1,7 @@
 // Copyright (c) 2022-2023 Heusala Group <info@hg.fi>. All rights reserved.
 // Copyright (c) 2020-2021 Sendanor <info@sendanor.fi>. All rights reserved.
 
+import { ContentType } from "../core/request/types/ContentType";
 import { RequestServer, RequestServerDestructor, RequestServerEvent } from "../core/RequestServer";
 import { RequestRouter } from "../core/requestServer/RequestRouter";
 import { Disposable } from "../core/types/Disposable";
@@ -162,14 +163,18 @@ export class RequestServerImpl implements RequestServer, Disposable {
         const statusCode : RequestStatus | number = responseEntity.getStatusCode();
         res.statusCode    = statusCode;
         res.statusMessage = stringifyRequestStatus(statusCode);
-        this._writeResponseHeaders(responseEntity, res, 'text/plain');
         if (responseEntity.hasBody()) {
             const body = responseEntity.getBody();
+
             if (isString(body)) {
+
                 LOG.debug('_handleResponse: Ending as text ', statusCode, body);
+                this._writeResponseHeaders(responseEntity, res, ContentType.TEXT);
                 res.end(body);
+
             } else if ( typeof Response !== 'undefined' && body instanceof Response ) {
 
+                this._writeResponseHeaders(responseEntity, res, undefined);
                 // @ts-ignore
                 for await (const chunk of body.body) {
                     res.write(chunk);
@@ -177,10 +182,15 @@ export class RequestServerImpl implements RequestServer, Disposable {
                 res.end();
 
             } else {
+
+                this._writeResponseHeaders(responseEntity, res, ContentType.JSON);
                 LOG.debug('_handleResponse: Ending as json ', statusCode, body);
                 res.end(JSON.stringify(body, null, 2));
+
             }
+
         } else {
+            this._writeResponseHeaders(responseEntity, res, undefined);
             LOG.debug('_handleResponse: Ending without body ', statusCode);
             res.end();
         }
@@ -224,7 +234,7 @@ export class RequestServerImpl implements RequestServer, Disposable {
     private _writeResponseHeaders (
         responseEntity  : ResponseEntity<any>,
         res             : ServerResponse,
-        defaultMimeType : string = 'text/plain'
+        defaultMimeType : string | undefined = undefined
     ) : void {
         const headers : Headers = responseEntity.getHeaders();
         if (!headers.isEmpty()) {
@@ -238,8 +248,8 @@ export class RequestServerImpl implements RequestServer, Disposable {
                 }
             });
         }
-        if (!headers.containsKey('Content-Type')) {
-            res.setHeader('Content-Type', defaultMimeType);
+        if ( defaultMimeType !== undefined && !headers.containsKey( 'Content-Type' ) ) {
+            res.setHeader( 'Content-Type', defaultMimeType );
         }
     }
 
